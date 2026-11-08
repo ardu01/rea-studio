@@ -2,7 +2,7 @@ import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { ghidraArgv, magicKind, parseJavaVersion, reaArgv, radareAdapter, rizinAdapter, stringsAdapter, metadataAdapter, createRegistry } from '../src/core/adapters'
+import { ghidraArgv, magicKind, parseJavaVersion, reaArgv, radareAdapter, resolveGhidraLauncher, rizinAdapter, stringsAdapter, metadataAdapter, createRegistry } from '../src/core/adapters'
 import { assertOptIn, buildDisclosure } from '../src/core/cloud'
 import { planLaunch, planWindowsCmd } from '../src/core/command'
 import { jobStartSchema } from '../src/core/ipc-schemas'
@@ -112,6 +112,11 @@ describe('adaptadores', () => {
       logPath: '/work/output/ghidra.log',
       timeoutSec: 90,
     })
+    expect(resolveGhidraLauncher('C:\\Tools\\ghidra', 'win32')).toBe('C:\\Tools\\ghidra\\support\\analyzeHeadless.bat')
+    expect(resolveGhidraLauncher('C:\\Tools\\analyzeHeadless.bat', 'win32')).toBe('C:\\Tools\\analyzeHeadless.bat')
+    expect(resolveGhidraLauncher('C:\\Tools\\analyzeHeadless.js', 'win32')).toBe('C:\\Tools\\analyzeHeadless.js')
+    expect(resolveGhidraLauncher('/opt/ghidra', 'linux')).toBe('/opt/ghidra/support/analyzeHeadless')
+    expect(resolveGhidraLauncher('/opt/analyzeHeadless', 'linux')).toBe('/opt/analyzeHeadless')
     expect(args).toContain('-import')
     expect(args).toContain('-deleteProject')
     expect(args).toContain('ExportSummary.java')

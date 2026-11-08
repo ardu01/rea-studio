@@ -222,10 +222,19 @@ export function parseJavaVersion(text: string): { version: string; major: number
 }
 
 export function resolveGhidraLauncher(configuredOrFound: string, platform: NodeJS.Platform): string {
-  const base = path.basename(configuredOrFound).toLowerCase()
-  if (base === 'analyzeheadless' || base === 'analyzeheadless.bat') return configuredOrFound
+  const pathFor = platform === 'win32' ? path.win32 : path.posix
+  const base = pathFor.basename(configuredOrFound).toLowerCase()
+  if (
+    base === 'analyzeheadless' ||
+    base === 'analyzeheadless.bat' ||
+    base === 'analyzeheadless.cmd' ||
+    base === 'analyzeheadless.exe' ||
+    base === 'analyzeheadless.js'
+  ) {
+    return configuredOrFound
+  }
   const file = platform === 'win32' ? 'analyzeHeadless.bat' : 'analyzeHeadless'
-  return path.join(configuredOrFound, 'support', file)
+  return pathFor.join(configuredOrFound, 'support', file)
 }
 
 export function ghidraArgv(input: {
