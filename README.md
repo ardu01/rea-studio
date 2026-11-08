@@ -121,7 +121,7 @@ npm run build
 npm run dist:win
 ```
 
-`dist:win` usa electron-builder con NSIS x64. En Windows no hace falta Wine. En Linux, electron-builder ejecuta un stub NSIS de 32 bits para cerrar el instalador: hace falta `wine` y `wine32`. El bundle Wine 11 (`toolsets.wine` 1.0.1) falló en esta imagen con `ntdll.dll` `c0000135`. `CSC_IDENTITY_AUTO_DISCOVERY=false` evita buscar un certificado. El instalador no está firmado.
+`dist:win` usa electron-builder con NSIS x64 y `--publish never`. Si el checkout está en una etiqueta, electron-builder 26 intenta publicar solo y falla sin `GH_TOKEN`; la release la sube el workflow, no electron-builder. En Windows no hace falta Wine. En Linux, electron-builder ejecuta un stub NSIS de 32 bits para cerrar el instalador: hace falta `wine` y `wine32`. El bundle Wine 11 (`toolsets.wine` 1.0.1) falló en esta imagen con `ntdll.dll` `c0000135`. `CSC_IDENTITY_AUTO_DISCOVERY=false` evita buscar un certificado. El instalador no está firmado.
 
 ## Pruebas
 
