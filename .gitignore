@@ -1,0 +1,17 @@
+node_modules/
+out/
+release/
+dist/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+*.exe
+*.blockmap
+*.nsis.7z
+user-data/
+.electron/
+tmp/
+*.pem
+secrets*.json

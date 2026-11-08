@@ -1,0 +1,32 @@
+appId: com.reastudio.desktop
+productName: REA Studio
+copyright: Copyright © 2026 Miguel
+directories:
+  output: release
+files:
+  - out/**
+  - package.json
+extraResources:
+  - from: resources
+    to: resources
+asar: true
+npmRebuild: false
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # resedit escribe icono y versión. signExecutable: false omite la firma: no hay certificado.
+  signExecutable: false
+  requestedExecutionLevel: asInvoker
+  artifactName: REA-Studio-${version}-win-x64.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  unicode: true
+  displayLanguageSelector: true
+  installerLanguages:
+    - es_ES
+    - en_US
+  shortcutName: REA Studio

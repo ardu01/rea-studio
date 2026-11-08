@@ -1,0 +1,160 @@
+name: Instalador Windows
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  nsis:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Empaquetar NSIS x64
+        run: npm run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Comprobar instalador y SHA256SUMS
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $exe = Get-ChildItem release -File -Filter 'REA-Studio-*-win-x64.exe' |
+            Where-Object { $_.Name -notlike '*uninstaller*' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          if (-not $exe) { throw 'No se generó REA-Studio-*-win-x64.exe' }
+          if ($exe.Length -lt 40MB) { throw "El instalador es demasiado pequeño ($($exe.Length) bytes). No se publica un stub." }
+          $bytes = [System.IO.File]::ReadAllBytes($exe.FullName)[0..1]
+          if ($bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) { throw 'El instalador no empieza por la marca MZ de un ejecutable Windows.' }
+          $hash = (Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower()
+          $line = "$hash  $($exe.Name)"
+          Set-Content -Encoding ascii -Path release/SHA256SUMS -Value $line
+          Write-Host $line
+      - name: Instalación silenciosa y arranque del proceso
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          function Read-Mz([string]$Path) {
+            $bytes = [System.IO.File]::ReadAllBytes($Path)
+            return ($bytes.Length -ge 2 -and $bytes[0] -eq 0x4D -and $bytes[1] -eq 0x5A)
+          }
+          $exe = Get-ChildItem release -File -Filter 'REA-Studio-*-win-x64.exe' |
+            Where-Object { $_.Name -notlike '*uninstaller*' } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          $installDir = Join-Path $env:RUNNER_TEMP 'rea-install'
+          $userData = Join-Path $env:RUNNER_TEMP 'rea-userdata'
+          $marker = Join-Path $env:RUNNER_TEMP 'rea-smoke.txt'
+          New-Item -ItemType Directory -Force -Path $installDir, $userData | Out-Null
+          $lines = New-Object System.Collections.Generic.List[string]
+          $lines.Add('level: preview')
+          $lines.Add('runner: windows-latest')
+          $lines.Add("installer: $($exe.Name)")
+          $lines.Add("installer_bytes: $($exe.Length)")
+          $lines.Add("installer_sha256: $((Get-FileHash $exe.FullName -Algorithm SHA256).Hash.ToLower())")
+          $lines.Add("installer_mz: $(Read-Mz $exe.FullName)")
+          $lines.Add('build_status: installer_present')
+          # NSIS exige que /D= sea el último argumento y vaya sin comillas.
+          $psi = New-Object System.Diagnostics.ProcessStartInfo
+          $psi.FileName = $exe.FullName
+          $psi.Arguments = "/S /D=$installDir"
+          $psi.UseShellExecute = $false
+          $psi.CreateNoWindow = $true
+          $install = [System.Diagnostics.Process]::Start($psi)
+          if (-not $install.WaitForExit(180000)) {
+            try { $install.Kill() } catch {}
+            $lines.Add('install_exit: timeout')
+            $lines.Add('install_status: failed')
+            $lines.Add('launch_status: not_attempted')
+            Set-Content -Encoding utf8NoBOM -Path release/INSTALL-VALIDATION.txt -Value $lines
+            Get-Content release/INSTALL-VALIDATION.txt
+            throw 'La instalación silenciosa superó 3 minutos.'
+          }
+          $lines.Add("install_exit: $($install.ExitCode)")
+          $installed = Get-ChildItem -Path $installDir -Recurse -File -Filter '*.exe' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike 'Uninstall*' -and $_.Length -gt 1MB } |
+            Sort-Object Length -Descending |
+            Select-Object -First 1
+          $installedOk = $false
+          if ($install.ExitCode -eq 0 -and $installed) { $installedOk = Read-Mz $installed.FullName }
+          if (-not $installedOk) {
+            $lines.Add('install_status: failed')
+            $lines.Add('launch_status: not_attempted')
+            $lines.Add('note: el NSIS se construyo en windows-latest, pero la instalacion silenciosa no dejo un ejecutable MZ usable.')
+            Set-Content -Encoding utf8NoBOM -Path release/INSTALL-VALIDATION.txt -Value $lines
+            Get-Content release/INSTALL-VALIDATION.txt
+            throw "Instalacion silenciosa no comprobada. exit=$($install.ExitCode)"
+          }
+          $lines.Add("installed_exe: $($installed.Name)")
+          $lines.Add("installed_bytes: $($installed.Length)")
+          $lines.Add('installed_mz: true')
+          $lines.Add('install_status: silent_install_extracted_exe')
+          $env:REA_STUDIO_SMOKE = '1'
+          $env:REA_STUDIO_SMOKE_OUT = $marker
+          function Stop-Rea {
+            Get-Process | Where-Object { $_.ProcessName -like 'REA Studio*' -or $_.ProcessName -eq 'REA Studio' } | Stop-Process -Force -ErrorAction SilentlyContinue
+          }
+          function Invoke-Smoke([string]$DataDir, [string[]]$ExtraArgs) {
+            if (Test-Path $marker) { Remove-Item $marker -Force }
+            New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+            $argList = @("--user-data-dir=$DataDir") + $ExtraArgs
+            $proc = Start-Process -FilePath $installed.FullName -ArgumentList $argList -PassThru -WindowStyle Hidden
+            $deadline = (Get-Date).AddSeconds(60)
+            $ok = $false
+            while ((Get-Date) -lt $deadline) {
+              if (Test-Path $marker) { $ok = $true; break }
+              if ($proc.HasExited) { break }
+              Start-Sleep -Milliseconds 500
+            }
+            $exit = 'running'
+            if ($proc.HasExited) { $exit = [string]$proc.ExitCode }
+            if (-not $proc.HasExited) { Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue }
+            Stop-Rea
+            return [pscustomobject]@{ Ok = $ok; Exit = $exit; Args = ($argList -join ' ') }
+          }
+          $first = Invoke-Smoke $userData @()
+          $chosen = $first
+          if (-not $first.Ok) {
+            $chosen = Invoke-Smoke (Join-Path $env:RUNNER_TEMP 'rea-userdata-fallback') @('--disable-gpu', '--no-sandbox')
+            $lines.Add('launch_retry: disable-gpu no-sandbox')
+          }
+          if ($chosen.Ok) {
+            $markerText = (Get-Content -Raw -Path $marker).Trim()
+            $lines.Add('launch_status: main_process_ready')
+            $lines.Add("launch_args: $($chosen.Args)")
+            $lines.Add("launch_marker: $markerText")
+            if ($chosen.Args -match 'no-sandbox') {
+              $lines.Add('launch_note: el proceso llego a app.ready solo con --disable-gpu --no-sandbox en el runner. Eso no es el arranque normal de un escritorio. No se pulso la interfaz, no se instalaron REA ni Ghidra y no se llamo a ninguna API.')
+            } else {
+              $lines.Add('launch_note: el proceso instalado llego a app.ready, creo la ventana y escribio el marcador. No se pulso la interfaz, no se instalaron REA ni Ghidra y no se llamo a ninguna API.')
+            }
+          } else {
+            $lines.Add('launch_status: not_verified')
+            $lines.Add("launch_exit: $($chosen.Exit)")
+            $lines.Add("launch_args: $($chosen.Args)")
+            $lines.Add('launch_note: la build y la instalacion silenciosa quedan registradas arriba. El arranque hasta app.ready no quedo demostrado en este runner.')
+          }
+          $lines.Add('not_checked: SmartScreen en un escritorio real, firma de código, herramientas externas, APIs de pago')
+          Set-Content -Encoding utf8NoBOM -Path release/INSTALL-VALIDATION.txt -Value $lines
+          Get-Content release/INSTALL-VALIDATION.txt
+          if (-not $chosen.Ok) { throw 'El ejecutable instalado no llego a app.ready. No se publica el arranque como comprobado.' }
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          prerelease: true
+          name: REA Studio ${{ github.ref_name }} (vista previa)
+          body_path: docs/release-notes-0.1.0.md
+          files: |
+            release/SHA256SUMS
+            release/INSTALL-VALIDATION.txt
+            release/REA-Studio-*-win-x64.exe
