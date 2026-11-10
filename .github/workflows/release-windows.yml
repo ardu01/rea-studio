@@ -10,6 +10,8 @@ permissions:
 
 jobs:
   nsis:
+    # Una etiqueta de paquete macOS no debe regenerar ni sustituir el instalador Windows.
+    if: ${{ github.event_name == 'workflow_dispatch' || !contains(github.ref_name, 'macos') }}
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
