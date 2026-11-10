@@ -1,0 +1,63 @@
+name: Paquete macOS Intel
+
+# Runner oficial para cuando macos-latest pueda arrancar.
+# El ZIP x64 también se puede generar con npm run dist:mac.
+# No marca la publicación como Latest: el instalador Windows sigue en v0.1.0.
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*-macos-*'
+
+permissions:
+  contents: write
+
+jobs:
+  zip:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Empaquetar ZIP x64
+        run: npm run dist:mac
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Empaquetar DMG x64
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          app=$(find release -type d -name 'REA Studio.app' | head -1)
+          test -n "$app"
+          npx electron-builder --mac dmg --x64 --publish never --config electron-builder.yml --prepackaged "$app"
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Comprobar ZIP, arquitectura y SHA256SUMS
+        run: |
+          set -euo pipefail
+          zip=$(find release -maxdepth 2 -type f -name 'REA-Studio-*-mac-x64.zip' | head -1)
+          test -n "$zip"
+          python3 scripts/verify-mac-zip.py "$zip"
+          exe=$(find release -type f -path '*/Contents/MacOS/REA Studio' | head -1)
+          test -n "$exe"
+          lipo -info "$exe"
+          file "$exe"
+      - uses: softprops/action-gh-release@v2
+        if: contains(github.ref, '-macos-')
+        with:
+          prerelease: true
+          make_latest: false
+          name: REA Studio 0.1.0 macOS Intel (vista previa)
+          body_path: release/NOTAS-MACOS.md
+          fail_on_unmatched_files: false
+          files: |
+            release/SHA256SUMS
+            release/MAC-VALIDATION.txt
+            release/REA-Studio-*-mac-x64.zip
+            release/REA-Studio-*-mac-x64.dmg

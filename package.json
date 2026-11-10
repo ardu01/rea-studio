@@ -14,6 +14,7 @@
     "test": "vitest run",
     "build": "electron-vite build",
     "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never --config electron-builder.yml",
+    "dist:mac": "npm run build && electron-builder --mac --x64 --publish never --config electron-builder.yml",
     "notices": "node scripts/collect-licenses.mjs"
   },
   "dependencies": {
