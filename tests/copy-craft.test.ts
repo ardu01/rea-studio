@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
   CHECK_GOOD_ENOUGH,
@@ -64,11 +65,11 @@ describe('Craft Anything en el modo sencillo', () => {
     const common = { jobDir: '/ws/jobs/j', timeoutMs: 1000, resourcesDir: '/r', configured: { craftAnything: '/opt/craft/craft-anything-cli' }, platform: 'linux' as const, pathEnv: '' }
     const triage = craftAnythingAdapter.plan('triage', { ...common, outputDir: '/ws/jobs/j/output', targetPath: '/app/app.exe' })
     if (triage.kind !== 'process') throw new Error('proceso')
-    expect(triage.args).toEqual(['--deep', '--format', 'json', '--project', '/ws/jobs/j/output/craft-project', 'triage', '/app/app.exe'])
+    expect(triage.args).toEqual(['--deep', '--format', 'json', '--project', path.join('/ws/jobs/j/output', 'craft-project'), 'triage', '/app/app.exe'])
     expect(Object.keys(triage.env ?? {})).toEqual(['CRAFT_ANYTHING_CONFIG_DIR'])
     const report = craftAnythingAdapter.plan('report', { ...common, outputDir: '/ws/jobs/k/output', targetPath: '/ws/jobs/j/output/craft-project' })
     if (report.kind !== 'process') throw new Error('proceso')
-    expect(report.args).toEqual(['--deep', '--format', 'json', '--project', '/ws/jobs/j/output/craft-project', 'report', '--out', '/ws/jobs/k/output/craft-report.md'])
+    expect(report.args).toEqual(['--deep', '--format', 'json', '--project', '/ws/jobs/j/output/craft-project', 'report', '--out', path.join('/ws/jobs/k/output', 'craft-report.md')])
     expect(() => craftAnythingAdapter.plan('report', { ...common, outputDir: '/o' })).toThrow(/carpeta del proyecto/)
     const spec = craftAnythingAdapter.actions.find((item) => item.id === 'report')
     expect(spec).toMatchObject({ needsTarget: true, targetKind: 'directory' })
