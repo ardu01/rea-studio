@@ -16,6 +16,7 @@ export const settingsPatchSchema = z
         rabin2: toolPath.optional(),
         rizin: toolPath.optional(),
         rzBin: toolPath.optional(),
+        jadx: toolPath.optional(),
         codex: toolPath.optional(),
         claude: toolPath.optional(),
         gemini: toolPath.optional(),

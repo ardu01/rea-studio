@@ -9,6 +9,10 @@ files:
 extraResources:
   - from: resources
     to: resources
+  # Herramientas incluidas (npm run tools:fetch). Quedan en resources/tools, dentro de la
+  # carpeta de la app del usuario: sin administrador y sin tocar el PATH.
+  - from: vendor-tools
+    to: tools
 asar: true
 npmRebuild: false
 win:

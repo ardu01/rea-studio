@@ -252,7 +252,7 @@ export function ToolsScreen({
     <div className="page">
       <h1>Herramientas</h1>
       <p className="lead">
-        REA Studio no incluye Ghidra, REA, radare2 ni Rizin. Indica la ruta o déjalas en PATH. Los complementos futuros se detectan, pero no se ejecutan.
+        El instalador de Windows trae REA, Ghidra con su JDK, radare2, Rizin y JADX, instalados para tu usuario dentro de la carpeta de REA Studio. Si indicas otra ruta, se usa esa. IDA Pro, Binary Ninja y Hopper no se pueden incluir por su licencia: descárgalos de su web oficial.
       </p>
       <div className="row" style={{ marginTop: 22 }}>
         <Button type="button" disabled={busy} onClick={() => void detect()}>
@@ -266,13 +266,18 @@ export function ToolsScreen({
           <article key={item.id} className="card">
             <div className="row" style={{ justifyContent: 'space-between' }}>
               <h2>{item.name}</h2>
-              <Badge tone={toneOf(item)}>{labelOf(item)}</Badge>
+              <div className="row" style={{ gap: 6 }}>
+                {item.source === 'bundled' ? <Badge tone="ready">Incluida</Badge> : null}
+                {item.source === 'configured' ? <Badge>Ruta propia</Badge> : null}
+                <Badge tone={toneOf(item)}>{labelOf(item)}</Badge>
+              </div>
             </div>
             <p className="small" style={{ marginTop: 8 }}>{item.detail}</p>
             <p className="small muted">{item.installHint}</p>
             <p className="small muted">{item.verification}</p>
             {pathKey(item.id) ? (
               <PathEditor
+                placeholder={item.source === 'bundled' ? 'Vacío para usar la incluida' : undefined}
                 label="Ruta"
                 name={item.name}
                 value={paths[pathKey(item.id)!] ?? ''}
@@ -282,6 +287,7 @@ export function ToolsScreen({
             ) : null}
             {item.id === 'ghidra' ? (
               <PathEditor
+                placeholder={item.source === 'bundled' ? 'Vacío para usar la incluida' : undefined}
                 label="Ruta de java"
                 name="Java"
                 value={paths.java}
@@ -291,6 +297,7 @@ export function ToolsScreen({
             ) : null}
             {item.id === 'radare2' ? (
               <PathEditor
+                placeholder={item.source === 'bundled' ? 'Vacío para usar la incluida' : undefined}
                 label="Ruta de rabin2"
                 name="rabin2"
                 value={paths.rabin2}
@@ -300,6 +307,7 @@ export function ToolsScreen({
             ) : null}
             {item.id === 'rizin' ? (
               <PathEditor
+                placeholder={item.source === 'bundled' ? 'Vacío para usar la incluida' : undefined}
                 label="Ruta de rz-bin"
                 name="rz-bin"
                 value={paths.rzBin}
@@ -307,7 +315,12 @@ export function ToolsScreen({
                 onSave={() => void save('rzBin')}
               />
             ) : null}
-            <div style={{ marginTop: 10 }}>
+            <div className="row" style={{ marginTop: 10, gap: 8 }}>
+              {item.downloadUrl ? (
+                <Button type="button" variant="secondary" onClick={() => void bridge.openDocs(item.downloadUrl!)}>
+                  Descargar de la web oficial
+                </Button>
+              ) : null}
               <Button type="button" variant="ghost" onClick={() => void bridge.openDocs(item.docsUrl)}>
                 Documentación
               </Button>
@@ -967,18 +980,20 @@ function PathEditor({
   value,
   onChange,
   onSave,
+  placeholder = 'Vacío para usar PATH',
 }: {
   label: string
   name: string
   value: string
   onChange: (value: string) => void
   onSave: () => void
+  placeholder?: string
 }) {
   return (
     <div style={{ marginTop: 12 }}>
       <Label>{label}</Label>
       <div className="row">
-        <Field aria-label={`${label} de ${name}`} value={value} placeholder="Vacío para usar PATH" onChange={(event) => onChange(event.target.value)} />
+        <Field aria-label={`${label} de ${name}`} value={value} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
         <Button type="button" variant="secondary" onClick={onSave}>
           Guardar
         </Button>
@@ -993,6 +1008,7 @@ function pathKey(id: string): keyof AppState['settings']['tools'] | null {
     ghidra: 'ghidra',
     radare2: 'radare2',
     rizin: 'rizin',
+    jadx: 'jadx',
     'codex-cli': 'codex',
   }
   return map[id] ?? null

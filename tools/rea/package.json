@@ -1,0 +1,9 @@
+{
+  "name": "rea-studio-bundled-rea",
+  "private": true,
+  "description": "CLI de REA que lleva dentro el instalador de REA Studio. El lockfile fija cada dependencia con su integridad sha512.",
+  "license": "MIT",
+  "dependencies": {
+    "rea-agents": "6.8.0"
+  }
+}

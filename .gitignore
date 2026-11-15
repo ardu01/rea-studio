@@ -15,3 +15,5 @@ user-data/
 tmp/
 *.pem
 secrets*.json
+.cache/
+vendor-tools/

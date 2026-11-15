@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { adapterById, assertTargetExists, listOutputFiles, type ToolAdapter } from './adapters.js'
-import { findOnPath, planLaunch } from './command.js'
+import { existsSync, readFileSync } from 'node:fs'
+import { adapterById, assertTargetExists, ghidraLauncher, listOutputFiles, resolveTool, type ToolAdapter } from './adapters.js'
+import { ghidraJavaMin, type BundledTools } from './bundled.js'
+import { planLaunch } from './command.js'
 import { allowedEnv, runProcess } from './process.js'
 import { assertInside } from './paths.js'
 import { parseJavaVersion } from './adapters.js'
@@ -30,6 +32,8 @@ export class JobManager {
       emit: (event: JobEvent) => void
       platform?: NodeJS.Platform
       pathEnv?: string
+      /** Herramientas incluidas en el instalador (resources/tools). */
+      bundled?: BundledTools
     },
   ) {}
 
@@ -172,8 +176,7 @@ export class JobManager {
         const spec = adapter.actions.find((item) => item.id === record.actionId)
         record.targetPath = await assertTargetExists(record.targetPath, spec?.targetKind ?? 'file')
       }
-      if (adapter.id === 'ghidra') await this.assertJava(append)
-      const plan = adapter.plan(record.actionId, {
+      const planInput = {
         targetPath: record.targetPath,
         jobDir,
         outputDir,
@@ -182,7 +185,11 @@ export class JobManager {
         configured: this.deps.configured(),
         platform: this.deps.platform ?? process.platform,
         pathEnv: this.deps.pathEnv ?? process.env.PATH ?? '',
-      })
+        bundled: this.deps.bundled,
+      }
+      if (adapter.id === 'ghidra') await this.assertJava(append, ghidraLauncher(planInput))
+      if (adapter.id === 'jadx') await this.assertJava(append)
+      const plan = adapter.plan(record.actionId, planInput)
       if (plan.kind === 'local') {
         await append('system', 'Trabajo local. El archivo no se ejecuta.\n')
         const result = await plan.run({
@@ -211,7 +218,7 @@ export class JobManager {
         cwd: plan.cwd,
         timeoutMs: record.timeoutMs,
         stdin: plan.stdin,
-        env: allowedEnv(),
+        env: { ...allowedEnv(), ...plan.env },
         signal: controller.signal,
         onChunk: (stream, text) => {
           void append(stream, text)
@@ -236,12 +243,21 @@ export class JobManager {
     }
   }
 
-  private async assertJava(append: (stream: 'system', text: string) => Promise<void>): Promise<void> {
-    const configured = this.deps.configured().java?.trim()
-    const java =
-      configured ||
-      findOnPath('java', this.deps.pathEnv ?? process.env.PATH ?? '', this.deps.platform ?? process.platform)
-    if (!java) throw new Error('Ghidra necesita Java. No está java en PATH ni en Ajustes.')
+  private async assertJava(append: (stream: 'system', text: string) => Promise<void>, ghidra?: string): Promise<void> {
+    const platform = this.deps.platform ?? process.platform
+    const resolved = resolveTool(
+      {
+        configured: this.deps.configured(),
+        platform,
+        pathEnv: this.deps.pathEnv ?? process.env.PATH ?? '',
+        exists: existsSync,
+        bundled: this.deps.bundled,
+      },
+      'java',
+      'java',
+    )
+    if (!resolved) throw new Error('Hace falta Java. No está java en PATH, en Ajustes ni incluido con REA Studio.')
+    const java = resolved.path
     const launch = planLaunch(java, ['-version'], this.deps.platform ?? process.platform, this.deps.pathEnv ?? process.env.PATH ?? '')
     const result = await runProcess({
       command: launch.command,
@@ -255,10 +271,12 @@ export class JobManager {
     if (result.exitCode !== 0 && !parsed) {
       throw new Error('java -version falló. Revisa la ruta de Java.')
     }
-    if (parsed?.major !== null && parsed && parsed.major < 21) {
-      await append('system', `Aviso: Java ${parsed.version}. Ghidra 11.x pide JDK 21.\n`)
+    const min = ghidra ? (ghidraJavaMin(ghidra, platform, (file) => readFileSync(file, 'utf8')) ?? 21) : 11
+    const origin = resolved.source === 'bundled' ? ' (incluido con REA Studio)' : ''
+    if (parsed?.major !== null && parsed && parsed.major < min) {
+      await append('system', `Aviso: Java ${parsed.version}${origin}. ${ghidra ? 'Esta versión de Ghidra' : 'JADX'} pide JDK ${min}.\n`)
     } else if (parsed) {
-      await append('system', `Java ${parsed.version}.\n`)
+      await append('system', `Java ${parsed.version}${origin}.\n`)
     }
   }
 }

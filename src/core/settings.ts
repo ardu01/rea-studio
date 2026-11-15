@@ -19,6 +19,7 @@ export function defaultSettings(): PublicSettings {
       rabin2: '',
       rizin: '',
       rzBin: '',
+      jadx: '',
       codex: '',
       claude: '',
       gemini: '',

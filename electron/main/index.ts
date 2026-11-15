@@ -6,6 +6,7 @@ import { ZodError } from 'zod'
 import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core/adapters'
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
+import { locateBundledTools, type BundledTools } from '../../src/core/bundled'
 import { allowedEnv, runProcess } from '../../src/core/process'
 import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, referencesUpdateSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
@@ -64,6 +65,19 @@ function ghidraScripts(): string {
     if (existsSync(path.join(candidate, 'ExportSummary.java'))) return candidate
   }
   return candidates[2] ?? candidates[0]!
+}
+
+/**
+ * Carpeta con las herramientas incluidas: resources/tools en la app instalada y vendor-tools/ al
+ * desarrollar (npm run tools:fetch). Se calcula una vez.
+ */
+let bundledCache: BundledTools | undefined | null = null
+function bundledTools(): BundledTools | undefined {
+  if (bundledCache !== null) return bundledCache
+  const candidates = [path.join(process.resourcesPath, 'tools'), path.join(app.getAppPath(), 'vendor-tools')]
+  const dir = candidates.find((candidate) => existsSync(path.join(candidate, 'tools.json')))
+  bundledCache = locateBundledTools(dir, process.platform, existsSync)
+  return bundledCache
 }
 
 function requireWorkspace(): string {
@@ -218,6 +232,7 @@ function registerIpc(): void {
       pathEnv: process.env.PATH ?? '',
       configured: settings.tools,
       resourcesDir: ghidraScripts(),
+      bundled: bundledTools(),
       exists: existsSync,
       runVersion: async (executable: string, args: string[]) => {
         const launch = planLaunch(executable, args)
@@ -751,6 +766,7 @@ app.whenReady().then(async () => {
     workspace: requireWorkspace,
     configured: () => settings.tools,
     resourcesDir: ghidraScripts(),
+    bundled: bundledTools(),
     scrub: async () => {
       const values = await secretValues()
       return (text: string) => scrubForLog(text, values)
