@@ -70,6 +70,29 @@ describe('rutas y lanzamiento', () => {
     expect(plan.args[3]).toContain('"C:\\samples\\app.exe"')
   })
 
+  it('envuelve la línea de cmd.exe en comillas externas y pide argumentos literales', () => {
+    // Con /s, cmd.exe quita la primera y la última comilla; sin las externas y sin
+    // windowsVerbatimArguments, Node escapa las comillas (\") y cmd no encuentra rea.cmd.
+    const plan = planWindowsCmd('C:\\Users\\demo\\AppData\\Roaming\\npm\\rea.cmd', ['analyze-javascript-application', 'D:\\Muestras\\app.asar', '--json'])
+    expect(plan.args).toEqual(['/d', '/s', '/c', '""C:\\Users\\demo\\AppData\\Roaming\\npm\\rea.cmd" "analyze-javascript-application" "D:\\Muestras\\app.asar" "--json""'])
+    expect(plan.windowsVerbatimArguments).toBe(true)
+  })
+
+  it('solo pide argumentos literales cuando pasa por cmd.exe', () => {
+    expect(planLaunch(process.execPath, ['--version']).windowsVerbatimArguments).toBe(false)
+  })
+
+  it('todas las llamadas que lanzan un plan pasan windowsVerbatimArguments', () => {
+    const fs = require('node:fs') as typeof import('node:fs')
+    for (const file of ['src/core/jobs.ts', 'src/core/providers.ts', 'src/core/project/exec.ts', 'src/core/project/git.ts', 'electron/main/index.ts']) {
+      const text = fs.readFileSync(file, 'utf8')
+      const launches = text.match(/args: launch\.args,/g)?.length ?? 0
+      const verbatim = text.match(/windowsVerbatimArguments: launch\.windowsVerbatimArguments/g)?.length ?? 0
+      expect(launches, file).toBeGreaterThan(0)
+      expect(verbatim, file).toBe(launches)
+    }
+  })
+
   it('pasa un nombre con metacaracteres como un solo argumento, sin shell', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'rea-arg-'))
     const weird = path.join(dir, 'a&b;$(rm)')
