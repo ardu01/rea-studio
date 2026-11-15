@@ -9,6 +9,10 @@ import { JobManager } from '../src/core/jobs'
 import { scrubForLog } from '../src/core/redact'
 import { DOC_LINK_LIST } from '../src/shared/types'
 
+// Estas pruebas montan una carpeta tools/ de Linux con sustitutos #! (java, analyzeHeadless, jadx).
+// En Windows se comprueba lo mismo con la app empaquetada (ver docs/HERRAMIENTAS-INCLUIDAS.md).
+const posixIt = it.skipIf(process.platform === 'win32')
+
 const manifest = JSON.parse(readFileSync('tools/manifest.json', 'utf8'))
 
 async function writeExe(file: string, body: string): Promise<string> {
@@ -83,7 +87,18 @@ describe('herramientas incluidas en el instalador', () => {
     expect(locateBundledTools(null, 'win32', () => true)).toBeUndefined()
   })
 
-  it('usa primero la ruta indicada, después la incluida y por último el PATH', async () => {
+  it('planifica REA y JADX incluidos con rutas de Windows', () => {
+    const dir = 'C:\\REA Studio\\resources\\tools'
+    const bundled = locateBundledTools(dir, 'win32', () => true, () => '{}')!
+    const input = { targetPath: 'D:\\Muestras\\app.apk', jobDir: 'D:\\ws\\jobs\\j', outputDir: 'D:\\ws\\jobs\\j\\output', timeoutMs: 1000, resourcesDir: 'r', configured: {}, platform: 'win32' as const, pathEnv: 'C:\\Windows\\System32', bundled }
+    const rea = reaAdapter.plan('providers', input)
+    expect(rea.kind === 'process' && [rea.executable, ...rea.args]).toEqual([`${dir}\\node\\node.exe`, `${dir}\\rea\\node_modules\\rea-agents\\scripts\\rea.mjs`, 'providers', '--json'])
+    const jadx = jadxAdapter.plan('decompile', input)
+    expect(jadx.kind === 'process' && jadx.executable).toBe(`${dir}\\jadx\\bin\\jadx.bat`)
+    expect(jadx.kind === 'process' && jadx.env).toEqual({ JAVA_HOME: `${dir}\\jdk`, PATH: `${dir}\\jdk\\bin;C:\\Windows\\System32`, JAVA_OPTS: '-Xmx4g' })
+  })
+
+  posixIt('usa primero la ruta indicada, después la incluida y por último el PATH', async () => {
     const { dir, bundled } = await fakeTools()
     const pathDir = path.join(dir, 'path')
     await writeExe(path.join(pathDir, 'rz-bin'), '#!/bin/sh\n')
@@ -95,7 +110,7 @@ describe('herramientas incluidas en el instalador', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('lanza la CLI de REA incluida con su node, sin pasar por cmd.exe', async () => {
+  posixIt('lanza la CLI de REA incluida con su node, sin pasar por cmd.exe', async () => {
     const { dir, bundled } = await fakeTools()
     const input = { targetPath: '/x/app.asar', jobDir: '/j', outputDir: '/o', timeoutMs: 1000, resourcesDir: '/r', configured: {}, platform: 'linux' as const, pathEnv: '', bundled }
     const plan = reaAdapter.plan('analyze-javascript', input)
@@ -108,7 +123,7 @@ describe('herramientas incluidas en el instalador', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('ejecuta un trabajo de REA con la copia incluida', async () => {
+  posixIt('ejecuta un trabajo de REA con la copia incluida', async () => {
     const { dir, bundled } = await fakeTools()
     const workspace = path.join(dir, 'ws')
     await mkdir(workspace)
@@ -121,7 +136,7 @@ describe('herramientas incluidas en el instalador', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('lanza Ghidra incluido con JAVA_HOME del JDK incluido', async () => {
+  posixIt('lanza Ghidra incluido con JAVA_HOME del JDK incluido', async () => {
     const { dir, bundled, tools } = await fakeTools()
     const workspace = path.join(dir, 'ws')
     await mkdir(workspace)
@@ -138,7 +153,7 @@ describe('herramientas incluidas en el instalador', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('avisa si el java no llega al mínimo que pide Ghidra', async () => {
+  posixIt('avisa si el java no llega al mínimo que pide Ghidra', async () => {
     const { dir, tools, bundled } = await fakeTools({ javaVersion: '21.0.2', ghidraJavaMin: 25 })
     expect(ghidraJavaMin(bundled.ghidra!, 'linux', (file) => readFileSync(file, 'utf8'))).toBe(25)
     const detection = await ghidraAdapter.detect({
@@ -157,7 +172,7 @@ describe('herramientas incluidas en el instalador', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('JADX incluido usa el JDK incluido y limita la memoria de Java', async () => {
+  posixIt('JADX incluido usa el JDK incluido y limita la memoria de Java', async () => {
     const { dir, bundled, tools } = await fakeTools()
     const workspace = path.join(dir, 'ws')
     await mkdir(workspace)
@@ -222,7 +237,7 @@ describe('manifiesto de herramientas', () => {
 
   it('el instalador copia vendor-tools a resources/tools', () => {
     const yml = readFileSync('electron-builder.yml', 'utf8')
-    expect(yml).toMatch(/- from: vendor-tools\n\s+to: tools/)
+    expect(yml).toMatch(/- from: vendor-tools\r?\n\s+to: tools/)
     expect(yml).toMatch(/perMachine: false/)
     expect(yml).toMatch(/requestedExecutionLevel: asInvoker/)
   })
