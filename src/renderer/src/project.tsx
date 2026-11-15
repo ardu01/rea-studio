@@ -279,6 +279,16 @@ function OpenProject({
           <p className="path muted">{project.root}</p>
         </div>
         <div className="row">
+          <label className="auto-toggle" title="Los comandos permitidos se ejecutan sin preguntar. Instalar paquetes siempre pide confirmación.">
+            <input
+              type="checkbox"
+              aria-label="Modo autónomo"
+              checked={view.autonomous}
+              onChange={(event) => void act(() => bridge.setAutonomous(event.target.checked))}
+            />
+            <span>Modo autónomo</span>
+          </label>
+          <Badge tone={view.autonomous ? 'warn' : ''}>{view.autonomous ? 'Sin preguntar (salvo instalar)' : 'Con confirmación'}</Badge>
           <Button type="button" variant="ghost" onClick={() => void refresh()}>Actualizar</Button>
           <Button type="button" variant="secondary" onClick={() => void act(() => bridge.closeProject())}>Cerrar proyecto</Button>
         </div>

@@ -12,6 +12,7 @@ export interface ProjectServiceDeps {
 
 export class ProjectService {
   private current: ProjectInfo | null = null
+  private autonomousMode = false
 
   constructor(private readonly deps: ProjectServiceDeps) {}
 
@@ -27,8 +28,18 @@ export class ProjectService {
     return {
       project: this.current,
       gitAvailable: this.gitAvailable(),
+      autonomous: this.autonomousMode,
       templates: PROJECT_TEMPLATES.map((item) => ({ id: item.id, label: item.label, summary: item.summary })),
     }
+  }
+
+  get autonomous(): boolean {
+    return this.autonomousMode
+  }
+
+  setAutonomous(enabled: boolean): void {
+    if (enabled) this.requireProject()
+    this.autonomousMode = enabled
   }
 
   requireProject(): ProjectInfo {
@@ -46,6 +57,7 @@ export class ProjectService {
   async create(input: { parentDir: string; name: string; template: ProjectTemplateId; references: string[] }): Promise<ProjectInfo> {
     const probe = this.deps.gitFor(input.parentDir)
     if (!probe) throw new Error('No se encuentra git en PATH. Instálalo o añádelo a PATH para usar el modo Proyecto.')
+    this.autonomousMode = false
     this.current = await createProject({
       ...input,
       workspace: this.deps.workspace(),
@@ -59,11 +71,13 @@ export class ProjectService {
   }
 
   async open(dir: string): Promise<ProjectInfo> {
+    this.autonomousMode = false
     this.current = await openProject(dir, this.deps.workspace())
     return this.current
   }
 
   close(): void {
+    this.autonomousMode = false
     this.current = null
   }
 

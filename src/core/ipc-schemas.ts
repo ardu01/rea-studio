@@ -90,3 +90,11 @@ export const projectCreateSchema = z
 
 export const projectStepSchema = z.object({ stepId: z.string().regex(/^[0-9a-f]{7,64}$/) }).strict()
 export const projectDiffSchema = z.object({ stepId: z.string().regex(/^[0-9a-f]{7,64}$/).optional() }).strict()
+
+const commandName = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,30}$/)
+const commandArgs = z.array(z.string().max(1000)).max(40)
+export const commandCheckSchema = z.object({ command: commandName, args: commandArgs }).strict()
+export const commandRunSchema = z
+  .object({ command: commandName, args: commandArgs, confirmed: z.boolean(), timeoutSec: z.number().int().min(1).max(1800).optional() })
+  .strict()
+export const autonomousSchema = z.object({ enabled: z.boolean() }).strict()

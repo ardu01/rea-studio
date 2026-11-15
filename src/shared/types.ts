@@ -221,6 +221,11 @@ export interface ReaBridge {
   projectHistory(): Promise<GitStep[]>
   projectUndo(stepId: string): Promise<ProjectView>
   projectResetToStart(): Promise<ProjectView>
+  checkCommand(command: string, args: string[]): Promise<CommandCheck & { needsApproval: boolean }>
+  runCommand(input: { command: string; args: string[]; confirmed: boolean; timeoutSec?: number }): Promise<{ runId: string }>
+  cancelCommand(runId: string): Promise<void>
+  setAutonomous(enabled: boolean): Promise<ProjectView>
+  onProjectEvent(cb: (event: ProjectEvent) => void): () => void
   shot?(name: string): Promise<void>
   shotDone?(): Promise<void>
 }
@@ -293,6 +298,7 @@ export interface ProjectInfo {
 export interface ProjectView {
   project: ProjectInfo | null
   gitAvailable: boolean
+  autonomous: boolean
   templates: Array<{ id: ProjectTemplateId; label: string; summary: string }>
 }
 
@@ -325,3 +331,26 @@ export interface GitStep {
   author: string
   byRea: boolean
 }
+
+export interface CommandCheck {
+  allowed: boolean
+  kind: 'normal' | 'install'
+  network: boolean
+  reason?: string
+  display: string
+  command: string
+  args: string[]
+}
+
+export interface CommandResult {
+  display: string
+  status: 'succeeded' | 'failed' | 'cancelled' | 'timed-out'
+  exitCode: number | null
+  durationMs: number
+  output: string
+  logPath: string
+}
+
+export type ProjectEvent =
+  | { kind: 'chunk'; runId: string; stream: 'stdout' | 'stderr'; text: string }
+  | { kind: 'done'; runId: string; result?: CommandResult; error?: string }
