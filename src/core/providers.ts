@@ -22,7 +22,6 @@ const SYSTEM = [
   'Eres el asistente de REA Studio.',
   'El usuario estudia artefactos que declara tener autorización para examinar.',
   'Resume solo el contexto que te entrega, distingue hechos de hipótesis y no inventes salidas de herramientas.',
-  'No des instrucciones para acceder a sistemas ajenos ni para evadir protecciones.',
 ].join(' ')
 
 export function assertProviderId(id: string): ProviderId {
