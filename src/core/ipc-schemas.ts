@@ -17,6 +17,7 @@ export const settingsPatchSchema = z
         rizin: toolPath.optional(),
         rzBin: toolPath.optional(),
         jadx: toolPath.optional(),
+        craftAnything: toolPath.optional(),
         codex: toolPath.optional(),
         claude: toolPath.optional(),
         gemini: toolPath.optional(),
@@ -84,7 +85,7 @@ export const projectCreateSchema = z
   .object({
     parentDir: z.string().min(1).max(4096),
     name: z.string().min(1).max(60),
-    template: z.enum(['node', 'python', 'dotnet', 'cmake']),
+    template: z.enum(['node', 'python', 'dotnet', 'cmake', 'java']),
     references: z.array(z.string().min(1).max(1024)).min(1, 'Carga el análisis del programa original.').max(50),
   })
   .strict()
@@ -106,3 +107,19 @@ export const agentAnswerSchema = z
   .strict()
 
 export const referencesUpdateSchema = z.object({ references: z.array(z.string().min(1).max(1024)).min(1).max(50).optional() }).strict()
+
+export const copyDetectSchema = z
+  .object({
+    path: z.string().min(1).max(4096),
+    destParent: z.string().min(1).max(4096).optional(),
+  })
+  .strict()
+
+export const copyStartSchema = z
+  .object({
+    sourcePath: z.string().min(1).max(4096),
+    destParent: z.string().min(1).max(4096).optional(),
+  })
+  .strict()
+
+export const copyAnswerSchema = z.object({ approve: z.boolean() }).strict()

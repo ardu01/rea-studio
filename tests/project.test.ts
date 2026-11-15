@@ -94,7 +94,7 @@ describe('rutas del proyecto', () => {
 
 describe('plantillas y manifiesto', () => {
   it('las cuatro plantillas generan solo rutas escribibles y comandos', () => {
-    expect(PROJECT_TEMPLATES.map((item) => item.id)).toEqual(['node', 'python', 'dotnet', 'cmake'])
+    expect(PROJECT_TEMPLATES.map((item) => item.id)).toEqual(['node', 'python', 'dotnet', 'cmake', 'java'])
     for (const template of PROJECT_TEMPLATES) {
       const files = template.files('demo')
       expect(Object.keys(files).length).toBeGreaterThan(2)
@@ -112,7 +112,8 @@ describe('plantillas y manifiesto', () => {
     expect(parseManifest('{"app":"rea-studio","kind":"proyecto","name":"demo","template":"python","references":["a",1]}').references).toEqual(['a'])
     expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'node', references: [REF] }).success).toBe(true)
     expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'node', references: [] }).success).toBe(false)
-    expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'java', references: [REF] }).success).toBe(false)
+    expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'java', references: [REF] }).success).toBe(true)
+    expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'rust', references: [REF] }).success).toBe(false)
     expect(projectCreateSchema.safeParse({ parentDir: '/tmp', name: 'demo', template: 'node', references: [REF], extra: 1 }).success).toBe(false)
     expect(projectStepSchema.safeParse({ stepId: 'HEAD~1' }).success).toBe(false)
   })

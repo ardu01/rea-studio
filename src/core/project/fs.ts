@@ -13,6 +13,7 @@ export const WRITABLE_EXTENSIONS = new Set([
   '.cs', '.csproj', '.sln', '.props', '.targets', '.resx',
   '.c', '.h', '.cpp', '.hpp', '.cc', '.cxx', '.hh', '.cmake', '.in',
   '.html', '.css', '.xml', '.csv', '.go', '.mod', '.rs',
+  '.java', '.kt', '.kts', '.gradle', '.properties',
 ])
 export const WRITABLE_NAMES = new Set(['CMakeLists.txt', '.gitignore', '.editorconfig', 'Makefile', 'README', 'LICENSE'])
 

@@ -92,6 +92,21 @@ export const PROJECT_TEMPLATES: readonly ProjectTemplate[] = [
       'README.md': `# ${name}\n\nProyecto C/C++ con CMake creado con REA Studio.\n\n- \`cmake -S . -B build\`\n- \`cmake --build build\`\n- \`ctest --test-dir build --output-on-failure\`\n`,
     }),
   },
+  {
+    id: 'java',
+    label: 'Java',
+    summary: 'Aplicación Java con javac, sin dependencias ni Maven.',
+    commands: [
+      { label: 'Compilar', command: 'javac', args: ['-d', 'out', 'src/App.java'] },
+      { label: 'Ejecutar', command: 'java', args: ['-cp', 'out', 'App'] },
+    ],
+    files: (name) => ({
+      'src/App.java': 'public class App {\n    public static String saludo(String nombre) {\n        return "Hola, " + nombre;\n    }\n\n    public static void main(String[] args) {\n        System.out.println(saludo("REA"));\n    }\n}\n',
+      '.gitignore': ['out/', '*.class', ...COMMON_IGNORE].join('\n'),
+      'README.md': `# ${name}\n\nProyecto Java creado con REA Studio.\n\n- Compilar: \`javac -d out src/App.java\`\n- Ejecutar: \`java -cp out App\`\n`,
+    }),
+  },
+
 ]
 
 export function templateFor(id: string): ProjectTemplate {

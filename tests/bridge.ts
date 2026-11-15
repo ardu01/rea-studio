@@ -146,5 +146,41 @@ export function bridgeFor(state: AppState): ReaBridge {
     onAgentEvent() {
       return () => undefined
     },
+    async chooseFolder() {
+      return null
+    },
+    async chooseDestDir() {
+      return null
+    },
+    async detectProgram() {
+      throw new Error('no usado')
+    },
+    async startCopy() {
+      throw new Error('no usado')
+    },
+    async cancelCopy() {
+      return null
+    },
+    async retryCopy() {
+      return null
+    },
+    async answerCopyPackage() {
+      return undefined
+    },
+    async answerCopyRunOriginal() {
+      return undefined
+    },
+    async copyState() {
+      return null
+    },
+    async openCopyFolder() {
+      return undefined
+    },
+    async runCopy() {
+      return { ok: false, error: 'no usado' }
+    },
+    onCopyEvent() {
+      return () => undefined
+    },
   }
 }

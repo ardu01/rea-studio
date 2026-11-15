@@ -26,6 +26,8 @@ describe('lista de comandos permitidos', () => {
       ['dotnet', ['build', 'src/App/App.csproj', '--nologo']],
       ['dotnet', ['run', '--project', 'src/App/App.csproj', '--no-build']],
       ['cmake', ['-S', '.', '-B', 'build']],
+      ['javac', ['-d', 'out', 'src/App.java']],
+      ['java', ['-cp', 'out', 'App']],
       ['cmake', ['--build', 'build']],
       ['ctest', ['--test-dir', 'build', '--output-on-failure']],
       ['git', ['status']],

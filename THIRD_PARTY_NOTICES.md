@@ -15,6 +15,7 @@ El instalador lleva estas herramientas sin modificar (salvo lo indicado), descar
 | radare2 | 6.2.6 | Mayormente LGPL-3.0; partes GPL, MIT, BSD, Apache-2.0, Zlib | https://github.com/radareorg/radare2/tree/6.2.6 |
 | Rizin | 0.9.1 | Mayormente LGPL-3.0; otras partes libres (REUSE.toml) | https://github.com/rizinorg/rizin/tree/v0.9.1 |
 | JADX | 1.5.6 | Apache-2.0 | https://github.com/skylot/jadx/tree/v1.5.6 |
+| Craft Anything (CLI oficial Windows x64) | 0.6.1 | MIT o Apache-2.0 (a elección); NOTICE y ATTRIBUTION.md | https://github.com/storytold/craft-anything/tree/v0.6.1 |
 
 El JDK, y las partes GPL o LGPL de Ghidra, radare2, Rizin y openpgp, se distribuyen con su código fuente disponible en los enlaces de la tabla, en la etiqueta exacta de la versión incluida. Si alguno deja de estar disponible ahí, se puede pedir a quien distribuye el instalador.
 

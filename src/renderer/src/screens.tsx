@@ -843,6 +843,25 @@ export function SettingsScreen({
             </Button>
           </article>
         ))}
+        <article className="card">
+          <h2>Acerca de</h2>
+          <p className="small" style={{ marginTop: 10, lineHeight: 1.55 }}>
+            REA Studio {state.version}, licencia MIT. El modo sencillo estudia el original con Craft Anything
+            (CLI oficial v0.6.1, MIT o Apache-2.0 a elección) en modo Deep y con el Ghidra incluido; si su CLI
+            no está o falla, se usan nuestras herramientas. Craft Anything es de ArtCraft Team y sus colaboradores;
+            les damos mención. Las licencias LICENSE-MIT, LICENSE-APACHE, NOTICE y ATTRIBUTION van en
+            resources/tools/licenses/craft-anything/ y en la lista de terceros.
+          </p>
+          <p className="small muted" style={{ marginTop: 8 }}>
+            El original no se ejecuta sin confirmación. La CLI se lanza sin --allow-run, con una carpeta de ajustes propia
+            (sin telemetría conocida en el análisis; no se llama a su instalador de Ghidra, se usa el nuestro).
+          </p>
+          <div className="row" style={{ marginTop: 12 }}>
+            <Button type="button" variant="secondary" onClick={() => void bridge.openDocs('https://github.com/storytold/craft-anything')}>
+              Documentación de Craft Anything
+            </Button>
+          </div>
+        </article>
       </div>
     </div>
   )
@@ -1009,6 +1028,7 @@ function pathKey(id: string): keyof AppState['settings']['tools'] | null {
     radare2: 'radare2',
     rizin: 'rizin',
     jadx: 'jadx',
+    'craft-anything': 'craftAnything',
     'codex-cli': 'codex',
   }
   return map[id] ?? null

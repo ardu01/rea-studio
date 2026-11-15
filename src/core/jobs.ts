@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { existsSync, readFileSync } from 'node:fs'
 import { adapterById, assertTargetExists, ghidraLauncher, listOutputFiles, resolveTool, type ToolAdapter } from './adapters.js'
+import { assertNoAllowRun, ghidraInstallDir, writeCraftConfig } from './copy/craft.js'
 import { ghidraJavaMin, type BundledTools } from './bundled.js'
 import { planLaunch } from './command.js'
 import { allowedEnv, runProcess } from './process.js'
@@ -189,7 +190,9 @@ export class JobManager {
       }
       if (adapter.id === 'ghidra') await this.assertJava(append, ghidraLauncher(planInput))
       if (adapter.id === 'jadx') await this.assertJava(append)
+      if (adapter.id === 'craft-anything') await this.prepareCraft(planInput, append)
       const plan = adapter.plan(record.actionId, planInput)
+      if (plan.kind === 'process') assertNoAllowRun(plan.args)
       if (plan.kind === 'local') {
         await append('system', 'Trabajo local. El archivo no se ejecuta.\n')
         const result = await plan.run({
@@ -241,6 +244,19 @@ export class JobManager {
       record.artifacts = await relativeArtifacts(workspace, jobDir, [logPath]).catch(() => [])
       return persist(status, { error: message === 'Cancelado.' ? 'Cancelado.' : message })
     }
+  }
+
+  private async prepareCraft(
+    input: { jobDir: string; bundled?: { ghidra?: string; javaHome?: string } },
+    append: (stream: 'system', text: string) => Promise<void>,
+  ): Promise<void> {
+    const configDir = path.join(input.jobDir, 'craft-config')
+    const ghidraDir = ghidraInstallDir(input.bundled?.ghidra)
+    await writeCraftConfig(configDir, { ghidraDir, javaHome: input.bundled?.javaHome })
+    await append(
+      'system',
+      'Craft Anything en modo Deep, con el Ghidra incluido si está, sin ejecutar el original y sin --allow-run.\n',
+    )
   }
 
   private async assertJava(append: (stream: 'system', text: string) => Promise<void>, ghidra?: string): Promise<void> {

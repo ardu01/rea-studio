@@ -8,7 +8,7 @@ import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { locateBundledTools, type BundledTools } from '../../src/core/bundled'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, referencesUpdateSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, referencesUpdateSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema, copyDetectSchema, copyStartSchema, copyAnswerSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
 import { isLocalEndpoint, listOllamaModels, ollamaChat, pullOllamaModel } from '../../src/core/ollama'
 import { AgentSessions } from '../../src/core/project/agent-session'
@@ -21,7 +21,11 @@ import { assertProviderId, checkProvider, publicProviders, runModel } from '../.
 import { scrubForLog } from '../../src/core/redact'
 import { createSealedStore, type SecretStore } from '../../src/core/secrets'
 import { endpointLeavesDevice, ensureWorkspace, loadSettings, normalizeSettings, rememberWorkspace, saveSettings } from '../../src/core/settings'
-import { APP_VERSION, DOC_LINK_LIST, type AppState, type ChatLine, type PublicSettings, type SettingsPatch } from '../../src/shared/types'
+import { APP_VERSION, DOC_LINK_LIST, type AgentEvent, type AppState, type ChatLine, type PublicSettings, type SettingsPatch } from '../../src/shared/types'
+import { CopyFlow, type AgentHandlers } from '../../src/core/copy/run'
+import { detectProgram } from '../../src/core/copy/detect'
+import { launchCommand } from '../../src/core/copy/launch'
+import { assertNoAllowRun, craftEnv, ghidraInstallDir, parseCraftCheck, writeCraftConfig } from '../../src/core/copy/craft'
 
 const ALLOWED_DOCS = new Set(DOC_LINK_LIST)
 
@@ -37,6 +41,9 @@ const pulls = new Map<string, AbortController>()
 let projects: ProjectService
 const commandRuns = new Map<string, AbortController>()
 let agents: AgentSessions
+let copyFlow!: CopyFlow
+let copyAnalysisRoot: string | null = null
+const agentWaiters = new Map<string, AgentHandlers & { resolve: (event: AgentEvent & { kind: 'end' }) => void }>()
 
 function gitExecutable(): string | null {
   return findOnPath('git', process.env.PATH ?? '', process.platform)
@@ -547,32 +554,7 @@ function registerIpc(): void {
   })
   handle('agent:start', async (payload) => {
     const body = agentStartSchema.parse(payload)
-    const project = projects.requireProject()
-    const { endpoint, model } = settings.providers.compatible
-    if (!isLocalEndpoint(endpoint)) throw new Error('El agente solo usa un modelo local: el endpoint del proveedor compatible debe ser localhost.')
-    if (!model.trim()) throw new Error('Elige un modelo en Ajustes › OpenAI compatible.')
-    if (commandRuns.size > 0) throw new Error('Hay un comando en marcha. Espera a que termine.')
-    const git = projects.git()
-    const ficha = await projects.ficha()
-    if (!ficha) throw new Error('Este proyecto no tiene la ficha del análisis del programa original. Cárgala en la pestaña «Referencia» antes de usar el agente.')
-    const runId = agents.start(
-      body.goal,
-      {
-        root: project.root,
-        projectName: project.name,
-        templateLabel: project.templateLabel,
-        commands: project.commands,
-        autonomous: () => projects.autonomous,
-        commit: (message) => git.commitAll(message),
-        diff: () => git.diff(),
-        run: (check, signal) => runProjectCommand({ root: project.root, check, signal }),
-        chat: (messages, tools, signal) => ollamaChat({ endpoint, model, messages, tools, signal }),
-        reference: async (query) => searchFicha(ficha, query),
-        analysis: fichaContext(ficha),
-        limits: body.maxSteps ? { maxSteps: body.maxSteps } : undefined,
-      },
-      model,
-    )
+    const { runId } = await beginAgent(body.goal, body.maxSteps)
     return { runId }
   })
   handle('agent:answer', async (payload) => {
@@ -583,7 +565,82 @@ function registerIpc(): void {
     const { id } = idSchema.parse(payload)
     agents.cancel(id)
   })
+  handle('dialog:folder', async () => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Carpeta a copiar',
+      properties: ['openDirectory'],
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return result.filePaths[0]
+  })
+  handle('copy:choose-dest', async () => {
+    const result = await dialog.showOpenDialog(mainWindow!, {
+      title: 'Carpeta de destino',
+      properties: ['openDirectory', 'createDirectory'],
+    })
+    if (result.canceled || !result.filePaths[0]) return null
+    return result.filePaths[0]
+  })
+  handle('copy:detect', async (payload) => {
+    const body = copyDetectSchema.parse(payload)
+    return detectProgram(body.path, { destParent: body.destParent })
+  })
+  handle('copy:start', async (payload) => {
+    const body = copyStartSchema.parse(payload)
+    const { endpoint, model } = settings.providers.compatible
+    if (!isLocalEndpoint(endpoint) || !model.trim()) {
+      throw new Error('Hace falta un modelo local para copiar la aplicación. Elige o descarga uno.')
+    }
+    copyAnalysisRoot = path.join(app.getPath('userData'), 'analisis')
+    await mkdir(copyAnalysisRoot, { recursive: true })
+    await copyFlow.start({ sourcePath: body.sourcePath, destParent: body.destParent })
+    return copyFlow.state
+  })
+  handle('copy:cancel', async () => {
+    copyFlow.cancel()
+    return copyFlow.state
+  })
+  handle('copy:retry', async () => {
+    await copyFlow.retry()
+    return copyFlow.state
+  })
+  handle('copy:answer-package', async (payload) => {
+    const { approve } = copyAnswerSchema.parse(payload)
+    copyFlow.answerPackage(approve)
+  })
+  handle('copy:answer-run-original', async (payload) => {
+    const { approve } = copyAnswerSchema.parse(payload)
+    copyFlow.answerRunOriginal(approve)
+  })
+  handle('copy:state', async () => copyFlow.state)
+  handle('copy:open-folder', async () => {
+    const root = copyFlow.state?.projectRoot
+    if (!root) throw new Error('Todavía no hay una carpeta de proyecto.')
+    const err = await shell.openPath(root)
+    if (err) throw new Error(err)
+  })
+  handle('copy:run', async () => {
+    const project = projects.project ?? (copyFlow.state?.projectRoot ? { root: copyFlow.state.projectRoot, template: copyFlow.state.detection.template } : null)
+    if (!project || !('template' in project) || !project.template) return { ok: false, error: 'Todavía no hay un proyecto que ejecutar.' }
+    const launch = launchCommand(project.template, project.root)
+    if (!launch) return { ok: false, error: 'Todavía no hay un ejecutable. Ábrelo desde Avanzado › Proyecto cuando esté compilado.' }
+    try {
+      if (path.isAbsolute(launch.command)) {
+        const err = await shell.openPath(launch.command)
+        if (err) return { ok: false, error: 'No he podido abrir el ejecutable.' }
+        return { ok: true }
+      }
+      const check = classifyCommand(launch.command, launch.args, project.root)
+      if (!check.allowed) return { ok: false, error: check.reason ?? 'Ese comando no está permitido.' }
+      if (check.kind === 'install') return { ok: false, error: 'Ejecutar no instala paquetes.' }
+      void runProjectCommand({ root: project.root, check })
+      return { ok: true }
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : 'No he podido ejecutarla.' }
+    }
+  })
   handle('app:open-docs', async (payload) => {
+
     const { url } = urlSchema.parse(payload)
     if (!ALLOWED_DOCS.has(url)) throw new Error('Enlace no permitido.')
     await shell.openExternal(url)
@@ -596,6 +653,119 @@ function registerIpc(): void {
   })
   handle('e2e:done', async () => {
     if (process.env.REA_STUDIO_E2E === '1') app.quit()
+  })
+}
+
+
+async function beginAgent(goal: string, maxSteps?: number, handlers?: AgentHandlers): Promise<{ runId: string; done: Promise<AgentEvent & { kind: 'end' }> }> {
+  const project = projects.requireProject()
+  const { endpoint, model } = settings.providers.compatible
+  if (!isLocalEndpoint(endpoint)) throw new Error('El agente solo usa un modelo local: el endpoint del proveedor compatible debe ser localhost.')
+  if (!model.trim()) throw new Error('Elige un modelo en Ajustes › OpenAI compatible.')
+  if (commandRuns.size > 0) throw new Error('Hay un comando en marcha. Espera a que termine.')
+  const git = projects.git()
+  const ficha = await projects.ficha()
+  if (!ficha) throw new Error('Este proyecto no tiene la ficha del análisis del programa original. Cárgala en la pestaña «Referencia» antes de usar el agente.')
+  let resolveEnd!: (event: AgentEvent & { kind: 'end' }) => void
+  const done = new Promise<AgentEvent & { kind: 'end' }>((resolve) => {
+    resolveEnd = resolve
+  })
+  const runId = agents.start(
+    goal,
+    {
+      root: project.root,
+      projectName: project.name,
+      templateLabel: project.templateLabel,
+      commands: project.commands,
+      autonomous: () => projects.autonomous,
+      commit: (message) => git.commitAll(message),
+      diff: () => git.diff(),
+      run: (check, signal) => runProjectCommand({ root: project.root, check, signal }),
+      chat: (messages, tools, signal) => ollamaChat({ endpoint, model, messages, tools, signal }),
+      reference: async (query) => searchFicha(ficha, query),
+      analysis: fichaContext(ficha),
+      limits: maxSteps ? { maxSteps } : undefined,
+    },
+    model,
+  )
+  agentWaiters.set(runId, { ...handlers, resolve: resolveEnd })
+  return { runId, done }
+}
+
+function makeAdapterContext() {
+  return {
+    platform: process.platform,
+    pathEnv: process.env.PATH ?? '',
+    configured: settings.tools,
+    resourcesDir: ghidraScripts(),
+    bundled: bundledTools(),
+    exists: existsSync,
+    runVersion: async (executable: string, args: string[]) => {
+      const launch = planLaunch(executable, args)
+      const result = await runProcess({
+        command: launch.command,
+        args: launch.args,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
+        cwd: app.getPath('temp'),
+        timeoutMs: 15000,
+        env: allowedEnv(),
+      })
+      return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
+    },
+  }
+}
+
+async function listReadyTools(): Promise<string[]> {
+  const ctx = makeAdapterContext()
+  const ready: string[] = []
+  for (const adapter of createRegistry()) {
+    const detection = await adapter.detect(ctx)
+    if (detection.state === 'ready') ready.push(adapter.id)
+  }
+  return ready
+}
+
+function attachCopyFlow(): void {
+  copyFlow = new CopyFlow({
+    listReadyTools,
+    runJob: async (input) => {
+      const started = await jobs.start(input)
+      return jobs.wait(started.id)
+    },
+    cancelJob: (id) => jobs.cancel(id),
+    createProject: async (input) => {
+      const info = await projects.create(input)
+      await rememberProject(info.root)
+      return info
+    },
+    setAutonomous: (enabled) => projects.setAutonomous(enabled),
+    startAgent: (goal, handlers) => beginAgent(goal, undefined, handlers),
+    cancelAgent: (runId) => agents.cancel(runId),
+    runCraftCheck: async ({ originalPath, copyRoot, allowRun }) => {
+      const bundled = bundledTools()
+      const cli = bundled?.craftAnything
+      if (!cli) return { alike: null, pending: '', raw: '', usedCraft: false }
+      const configDir = path.join(copyAnalysisRoot ?? app.getPath('userData'), 'analisis-craft')
+      await writeCraftConfig(configDir, {
+        ghidraDir: ghidraInstallDir(bundled?.ghidra),
+        javaHome: bundled?.javaHome,
+        runtimeStudy: allowRun,
+      })
+      const args = ['--deep', '--format', 'json', '--project', path.join(copyRoot, '.rea', 'craft-check'), 'report']
+      assertNoAllowRun(args)
+      void originalPath
+      const result = await runProcess({
+        command: cli,
+        args,
+        cwd: copyRoot,
+        timeoutMs: 20 * 60_000,
+        env: { ...allowedEnv(), ...craftEnv(configDir) },
+      })
+      const parsed = parseCraftCheck(`${result.stdout}\n${result.stderr}`)
+      return { ...parsed, usedCraft: true }
+    },
+    workspace: () => copyAnalysisRoot ?? settings.workspacePath,
+    emit: (state) => mainWindow?.webContents.send('copy:event', state),
   })
 }
 
@@ -763,7 +933,7 @@ app.whenReady().then(async () => {
     },
   )
   jobs = new JobManager({
-    workspace: requireWorkspace,
+    workspace: () => copyAnalysisRoot ?? requireWorkspace(),
     configured: () => settings.tools,
     resourcesDir: ghidraScripts(),
     bundled: bundledTools(),
@@ -778,7 +948,7 @@ app.whenReady().then(async () => {
       const git = gitExecutable()
       return git ? processGitRunner(git, root) : null
     },
-    workspace: () => settings.workspacePath,
+    workspace: () => copyAnalysisRoot ?? settings.workspacePath,
     agentInfo: () => ({
       model: settings.providers.compatible.model,
       endpoint: settings.providers.compatible.endpoint,
@@ -786,7 +956,34 @@ app.whenReady().then(async () => {
       running: agents?.running ?? null,
     }),
   })
-  agents = new AgentSessions((event) => mainWindow?.webContents.send('agent:event', event))
+  agents = new AgentSessions((event) => {
+    mainWindow?.webContents.send('agent:event', event)
+    const waiter = agentWaiters.get(event.runId)
+    if (!waiter) return
+    waiter.onEvent?.(event)
+    if (event.kind === 'approval') {
+      if (event.request.type === 'command' && event.request.check.kind === 'install' && waiter.onInstall) {
+        void waiter.onInstall(event.callId, event.request.check).then((ok) => {
+          try {
+            agents.answer(event.runId, event.callId, ok)
+          } catch {
+            /* la ejecución ya terminó */
+          }
+        })
+      } else {
+        try {
+          agents.answer(event.runId, event.callId, true)
+        } catch {
+          /* la ejecución ya terminó */
+        }
+      }
+    }
+    if (event.kind === 'end') {
+      waiter.resolve(event)
+      agentWaiters.delete(event.runId)
+    }
+  })
+  attachCopyFlow()
   if (settings.projectPath) {
     try {
       await projects.open(settings.projectPath)
