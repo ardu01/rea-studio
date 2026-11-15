@@ -30,3 +30,17 @@ nsis:
     - es_ES
     - en_US
   shortcutName: REA Studio
+mac:
+  # identity null y notarize false: sin firma y sin notarización. No hay certificado.
+  identity: null
+  notarize: false
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  # Electron 45 exige macOS 13. Sequoia 15 lo supera; no se pide un macOS más nuevo.
+  minimumSystemVersion: "13.0"
+  category: public.app-category.developer-tools
+  target:
+    - target: zip
+      arch:
+        - x64
+  artifactName: REA-Studio-${version}-mac-x64.${ext}

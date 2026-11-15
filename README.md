@@ -7,6 +7,7 @@
 [![Version](https://img.shields.io/badge/Version-0.1.0-2563EB?style=flat-square)](https://github.com/ardu01/rea-studio)
 ![Status](https://img.shields.io/badge/Status-Preview-F59E0B?style=flat-square)
 ![Windows](https://img.shields.io/badge/Platform-Windows_x64-0078D4?style=flat-square&logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/Platform-macOS_Intel_x86__64-000000?style=flat-square&logo=apple&logoColor=white)
 ![Electron](https://img.shields.io/badge/Electron-45-47848F?style=flat-square&logo=electron&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-7-3178C6?style=flat-square&logo=typescript&logoColor=white)
@@ -32,15 +33,16 @@
 12. [Gestión de trabajos](#12-gestión-de-trabajos)
 13. [Arquitectura y tecnologías](#13-arquitectura-y-tecnologías)
 14. [Instalación en Windows](#14-instalación-en-windows)
-15. [Configuración](#15-configuración)
-16. [Desarrollo y compilación](#16-desarrollo-y-compilación)
-17. [Pruebas y validación](#17-pruebas-y-validación)
-18. [Estado de compatibilidad](#18-estado-de-compatibilidad)
-19. [Limitaciones conocidas](#19-limitaciones-conocidas)
-20. [Hoja de ruta](#20-hoja-de-ruta)
-21. [Preguntas frecuentes](#21-preguntas-frecuentes)
-22. [Licencias y atribuciones](#22-licencias-y-atribuciones)
-23. [Autor y organización](#23-autor-y-organización)
+15. [Instalación en macOS Intel](#15-instalación-en-macos-intel)
+16. [Configuración](#16-configuración)
+17. [Desarrollo y compilación](#17-desarrollo-y-compilación)
+18. [Pruebas y validación](#18-pruebas-y-validación)
+19. [Estado de compatibilidad](#19-estado-de-compatibilidad)
+20. [Limitaciones conocidas](#20-limitaciones-conocidas)
+21. [Hoja de ruta](#21-hoja-de-ruta)
+22. [Preguntas frecuentes](#22-preguntas-frecuentes)
+23. [Licencias y atribuciones](#23-licencias-y-atribuciones)
+24. [Autor y organización](#24-autor-y-organización)
 
 ---
 
@@ -64,7 +66,7 @@ REA Studio no pretende sustituir los motores originales de análisis, sino propo
 | Categoría | Análisis de Software / Herramientas de Desarrollo |
 | Versión | 0.1.0 |
 | Estado | Vista previa experimental |
-| Plataforma de distribución | Windows x64 |
+| Plataforma de distribución | Windows x64 y macOS Intel (x86_64) |
 | Entornos de desarrollo | Windows y Linux |
 | Framework | Electron |
 | Interfaz | React |
@@ -731,6 +733,7 @@ Mantiene configuraciones, registros y artefactos.
 | Vitest 5 | Pruebas |
 | electron-builder | Distribución |
 | NSIS | Instalador Windows |
+| ZIP | Paquete macOS Intel (x86_64) |
 
 ### Arquitectura modular
 
@@ -796,7 +799,80 @@ REA Studio no incluye automáticamente todas las herramientas externas.
 
 REA, Ghidra, radare2, Rizin y las herramientas de inteligencia artificial deben instalarse y configurarse por separado cuando se necesiten.
 
-## 15. Configuración
+## 15. Instalación en macOS Intel
+
+### Distribución
+
+La versión 0.1.0 contempla un paquete ZIP para macOS Intel (x86_64):
+
+`REA-Studio-0.1.0-mac-x64.zip`
+
+No incluye binario arm64 ni paquete universal.
+
+### Requisitos
+
+- Mac con procesador Intel (x86_64).
+- macOS 13 o posterior.
+
+### Descargas
+
+Consultar:
+
+**[GitHub Releases](https://github.com/ardu01/rea-studio/releases)**
+
+El instalador Windows permanece en la publicación [v0.1.0](https://github.com/ardu01/rea-studio/releases/tag/v0.1.0). El ZIP de macOS Intel está en [v0.1.0-macos-x64](https://github.com/ardu01/rea-studio/releases/tag/v0.1.0-macos-x64).
+
+La publicación de macOS debe incluir:
+
+- Paquete ZIP.
+- Archivo `SHA256SUMS`.
+
+### Verificación
+
+Antes de abrir la aplicación, se recomienda comprobar la suma de comprobación.
+
+Ejemplo en Terminal:
+
+```bash
+shasum -a 256 REA-Studio-0.1.0-mac-x64.zip
+cat SHA256SUMS
+```
+
+Comparar el resultado con la suma publicada para ese archivo.
+
+### Instalación
+
+1. Descargar la publicación correspondiente.
+2. Verificar la integridad del ZIP.
+3. Descomprimir el archivo.
+4. Mover `REA Studio.app` a la carpeta Aplicaciones.
+5. Abrir REA Studio.
+6. Seleccionar una carpeta de trabajo.
+7. Configurar las herramientas externas necesarias.
+
+### Gatekeeper
+
+El paquete de la versión documentada no está firmado ni notarizado.
+
+macOS puede bloquear la primera apertura.
+
+Si el sistema lo impide, usar clic secundario y Abrir. Si sigue bloqueado: Ajustes del Sistema → Privacidad y seguridad → Abrir de todas formas.
+
+Si Gatekeeper continúa bloqueando la aplicación:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/REA Studio.app"
+```
+
+El usuario debe verificar la procedencia e integridad del archivo antes de autorizar su ejecución.
+
+### Dependencias
+
+REA Studio no incluye automáticamente todas las herramientas externas.
+
+REA, Ghidra, radare2, Rizin y las herramientas de inteligencia artificial deben instalarse y configurarse por separado cuando se necesiten.
+
+## 16. Configuración
 
 REA Studio permite configurar proveedores, modelos, endpoints y ubicaciones de herramientas.
 
@@ -845,7 +921,7 @@ Cada integración puede requerir indicar la ruta del ejecutable o de su director
 
 La aplicación distingue entre herramientas detectadas, no configuradas y aquellas que no han superado la verificación disponible.
 
-## 16. Desarrollo y compilación
+## 17. Desarrollo y compilación
 
 ### Requisitos
 
@@ -907,6 +983,18 @@ El proyecto utiliza electron-builder y NSIS x64.
 
 La publicación automática está desactivada mediante `--publish never`.
 
+### Crear distribución macOS Intel
+
+```bash
+npm run dist:mac
+```
+
+El proyecto utiliza electron-builder para generar un ZIP de macOS x64, sin arquitectura arm64.
+
+La aplicación no se firma ni se notariza.
+
+La publicación automática está desactivada mediante `--publish never`.
+
 ### Compilación desde Linux
 
 La compilación cruzada puede requerir Wine y componentes de 32 bits.
@@ -915,7 +1003,7 @@ El proyecto ha registrado limitaciones en determinadas configuraciones de Wine d
 
 Por ello, el resultado de una compilación cruzada debe validarse posteriormente en Windows.
 
-## 17. Pruebas y validación
+## 18. Pruebas y validación
 
 REA Studio incorpora pruebas automatizadas con Vitest.
 
@@ -989,7 +1077,7 @@ Las pruebas iniciales no incluyen ejecuciones completas contra todos los binario
 
 Las conexiones autenticadas reales con APIs comerciales tampoco se verificaron durante la compilación documentada.
 
-## 18. Estado de compatibilidad
+## 19. Estado de compatibilidad
 
 La siguiente matriz resume la cobertura documentada de REA Studio 0.1.0.
 
@@ -1018,7 +1106,7 @@ La siguiente matriz resume la cobertura documentada de REA Studio 0.1.0.
 
 Los adaptadores que únicamente se han probado con ejecutables sustitutos deben verificarse en un entorno con las herramientas correspondientes.
 
-## 19. Limitaciones conocidas
+## 20. Limitaciones conocidas
 
 REA Studio 0.1.0 es una versión experimental.
 
@@ -1058,7 +1146,7 @@ La documentación de la compilación inicial registra avisos moderados de seguri
 
 Deben revisarse los avisos vigentes y las versiones disponibles antes de publicar nuevas distribuciones.
 
-## 20. Hoja de ruta
+## 21. Hoja de ruta
 
 ### Fase I. Plataforma inicial
 
@@ -1104,7 +1192,7 @@ Deben revisarse los avisos vigentes y las versiones disponibles antes de publica
 
 La hoja de ruta representa posibles líneas de desarrollo y no compromisos de publicación.
 
-## 21. Preguntas frecuentes
+## 22. Preguntas frecuentes
 
 <details>
 <summary><strong>¿REA Studio es lo mismo que REA?</strong></summary>
@@ -1169,7 +1257,7 @@ Debe utilizarse únicamente sobre software que tengas autorización para examina
 
 </details>
 
-## 22. Licencias y atribuciones
+## 23. Licencias y atribuciones
 
 ### REA Studio
 
@@ -1212,7 +1300,7 @@ REA Studio no está patrocinado ni respaldado oficialmente por los desarrollador
 
 Los nombres comerciales se utilizan únicamente para identificar los productos y servicios correspondientes.
 
-## 23. Autor y organización
+## 24. Autor y organización
 
 ### Miguel Rodríguez Saiz
 

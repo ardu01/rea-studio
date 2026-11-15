@@ -18,6 +18,10 @@ import { APP_VERSION, DOC_LINK_LIST, type AppState, type ChatLine, type PublicSe
 
 const ALLOWED_DOCS = new Set(DOC_LINK_LIST)
 
+if (process.platform === 'darwin') {
+  app.commandLine.appendSwitch('js-flags', '--max-old-space-size=384')
+}
+
 app.setName('REA Studio')
 app.setAppUserModelId('com.reastudio.desktop')
 
