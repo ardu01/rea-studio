@@ -272,7 +272,6 @@
         "LICENSE-MIT",
         "LICENSE-APACHE",
         "NOTICE",
-        "LICENSE",
         "README.md"
       ],
       "dest": "craft-anything",
@@ -281,7 +280,6 @@
         "LICENSE-MIT",
         "LICENSE-APACHE",
         "NOTICE",
-        "LICENSE",
         "README.md"
       ],
       "source": "https://github.com/storytold/craft-anything/tree/v0.6.1",
