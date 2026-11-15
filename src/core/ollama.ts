@@ -243,3 +243,90 @@ export async function pullOllamaModel(opts: {
   if (opts.signal.aborted) throw new Error('Cancelado.')
   if (!finished) throw new Error('La descarga terminó sin confirmación de Ollama.')
 }
+
+export interface ChatMessage {
+  role: 'system' | 'user' | 'assistant' | 'tool'
+  content: string
+  tool_calls?: Array<{ function: { name: string; arguments: Record<string, unknown> } }>
+  tool_name?: string
+}
+
+export interface ToolSpec {
+  type: 'function'
+  function: { name: string; description: string; parameters: Record<string, unknown> }
+}
+
+export interface ChatReply {
+  content: string
+  toolCalls: Array<{ name: string; arguments: unknown }>
+}
+
+/** Quita los bloques de razonamiento <think>…</think> que algunos modelos dejan en el texto. */
+export function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, '').replace(/^[\s\S]*?<\/think>/i, '').trim()
+}
+
+/**
+ * Una vuelta de conversación con Ollama (POST /api/chat, sin streaming) con
+ * herramientas. Solo localhost.
+ */
+export async function ollamaChat(opts: {
+  endpoint: string
+  model: string
+  messages: ChatMessage[]
+  tools?: ToolSpec[]
+  signal?: AbortSignal
+  timeoutMs?: number
+  fetchImpl?: typeof fetch
+}): Promise<ChatReply> {
+  const base = ollamaBaseFromEndpoint(opts.endpoint)
+  const model = assertOllamaModelName(opts.model)
+  const fetchImpl = opts.fetchImpl ?? fetch
+  const signals = [AbortSignal.timeout(opts.timeoutMs ?? 15 * 60_000)]
+  if (opts.signal) signals.push(opts.signal)
+  let response: Response
+  try {
+    response = await fetchImpl(`${base}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, messages: opts.messages, tools: opts.tools?.length ? opts.tools : undefined, stream: false }),
+      signal: AbortSignal.any(signals),
+    })
+  } catch (error) {
+    if (opts.signal?.aborted) throw new Error('Cancelado.')
+    throw new Error(networkMessage(error, base))
+  }
+  const text = await response.text()
+  if (!response.ok) {
+    let detail = text
+    try {
+      detail = (JSON.parse(text) as { error?: string }).error ?? text
+    } catch {
+      /* no JSON */
+    }
+    if (/not found/i.test(detail)) throw new Error(`El modelo «${model}» no está instalado en Ollama. Descárgalo en Ajustes.`)
+    if (/does not support tools/i.test(detail)) throw new Error('NO_TOOLS')
+    throw new Error(`Ollama respondió HTTP ${response.status}: ${detail.slice(0, 200)}`)
+  }
+  let json: { message?: { content?: string; tool_calls?: Array<{ function?: { name?: string; arguments?: unknown } }> } }
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new Error('Ollama devolvió una respuesta que no es JSON.')
+  }
+  const message = json.message ?? {}
+  const toolCalls = (message.tool_calls ?? [])
+    .map((call) => {
+      let args = call.function?.arguments
+      if (typeof args === 'string') {
+        try {
+          args = JSON.parse(args)
+        } catch {
+          /* se valida después */
+        }
+      }
+      return { name: String(call.function?.name ?? ''), arguments: args }
+    })
+    .filter((call) => call.name)
+  return { content: stripThinking(message.content ?? ''), toolCalls }
+}

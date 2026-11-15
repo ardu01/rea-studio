@@ -7,9 +7,10 @@ import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
-import { listOllamaModels, pullOllamaModel } from '../../src/core/ollama'
+import { isLocalEndpoint, listOllamaModels, ollamaChat, pullOllamaModel } from '../../src/core/ollama'
+import { AgentSessions } from '../../src/core/project/agent-session'
 import { processGitRunner } from '../../src/core/project/git'
 import { classifyCommand, needsApproval, runProjectCommand } from '../../src/core/project/exec'
 import { ProjectService } from '../../src/core/project/service'
@@ -33,6 +34,7 @@ const chats = new Map<string, AbortController>()
 const pulls = new Map<string, AbortController>()
 let projects: ProjectService
 const commandRuns = new Map<string, AbortController>()
+let agents: AgentSessions
 
 function gitExecutable(): string | null {
   return findOnPath('git', process.env.PATH ?? '', process.platform)
@@ -451,6 +453,7 @@ function registerIpc(): void {
   })
   handle('project:close', async () => {
     for (const controller of commandRuns.values()) controller.abort()
+    if (agents.running) agents.cancel(agents.running)
     projects.close()
     await rememberProject(null)
     return projects.view()
@@ -486,6 +489,7 @@ function registerIpc(): void {
     if (!check.allowed) throw new Error(check.reason ?? 'Comando no permitido.')
     if (needsApproval(check, projects.autonomous) && !body.confirmed) throw new Error('Este comando necesita confirmación.')
     if (commandRuns.size > 0) throw new Error('Ya hay un comando en marcha. Espera o detenlo.')
+    if (agents.running) throw new Error('El agente está trabajando. Detenlo antes de lanzar comandos a mano.')
     const runId = `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
     const controller = new AbortController()
     commandRuns.set(runId, controller)
@@ -515,6 +519,40 @@ function registerIpc(): void {
     const { enabled } = autonomousSchema.parse(payload)
     projects.setAutonomous(enabled)
     return projects.view()
+  })
+  handle('agent:start', async (payload) => {
+    const body = agentStartSchema.parse(payload)
+    const project = projects.requireProject()
+    const { endpoint, model } = settings.providers.compatible
+    if (!isLocalEndpoint(endpoint)) throw new Error('El agente solo usa un modelo local: el endpoint del proveedor compatible debe ser localhost.')
+    if (!model.trim()) throw new Error('Elige un modelo en Ajustes › OpenAI compatible.')
+    if (commandRuns.size > 0) throw new Error('Hay un comando en marcha. Espera a que termine.')
+    const git = projects.git()
+    const runId = agents.start(
+      body.goal,
+      {
+        root: project.root,
+        projectName: project.name,
+        templateLabel: project.templateLabel,
+        commands: project.commands,
+        autonomous: () => projects.autonomous,
+        commit: (message) => git.commitAll(message),
+        diff: () => git.diff(),
+        run: (check, signal) => runProjectCommand({ root: project.root, check, signal }),
+        chat: (messages, tools, signal) => ollamaChat({ endpoint, model, messages, tools, signal }),
+        limits: body.maxSteps ? { maxSteps: body.maxSteps } : undefined,
+      },
+      model,
+    )
+    return { runId }
+  })
+  handle('agent:answer', async (payload) => {
+    const body = agentAnswerSchema.parse(payload)
+    agents.answer(body.runId, body.callId, body.approve)
+  })
+  handle('agent:cancel', async (payload) => {
+    const { id } = idSchema.parse(payload)
+    agents.cancel(id)
   })
   handle('app:open-docs', async (payload) => {
     const { url } = urlSchema.parse(payload)
@@ -711,7 +749,14 @@ app.whenReady().then(async () => {
       return git ? processGitRunner(git, root) : null
     },
     workspace: () => settings.workspacePath,
+    agentInfo: () => ({
+      model: settings.providers.compatible.model,
+      endpoint: settings.providers.compatible.endpoint,
+      local: isLocalEndpoint(settings.providers.compatible.endpoint),
+      running: agents?.running ?? null,
+    }),
   })
+  agents = new AgentSessions((event) => mainWindow?.webContents.send('agent:event', event))
   if (settings.projectPath) {
     try {
       await projects.open(settings.projectPath)

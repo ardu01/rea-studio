@@ -290,3 +290,18 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6p
 .auto-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; }
 .modal.confirm { width: min(600px, 92vw); }
 .kv { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; font-size: 13px; margin-top: 12px; }
+.agent-log { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; max-height: 560px; overflow: auto; }
+.msg { border-radius: 14px; padding: 9px 13px; font-size: 13.5px; line-height: 1.5; max-width: 88%; white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg.user { background: #1d1d1f; color: #fff; margin-left: auto; }
+.msg.ai { background: #fbfbfd; border: 1px solid rgba(0, 0, 0, 0.06); }
+.msg.end { background: #f2f2f4; max-width: 100%; }
+.msg.end.finished { background: #e8f6ee; color: #0d5c31; }
+.msg.end.failed, .msg.end.limit { background: #fdecec; color: #7d2323; }
+.tool-line summary { font-size: 12.5px; cursor: pointer; list-style: none; display: flex; gap: 6px; align-items: center; }
+.tool-line summary::-webkit-details-marker { display: none; }
+.tool-line .dot { width: 7px; height: 7px; border-radius: 50%; background: #c7c7cc; display: inline-block; }
+.tool-line.ok .dot { background: #34c759; }
+.tool-line.error .dot, .tool-line.rejected .dot { background: #ff3b30; }
+.tool-line.running .dot { background: #ff9f0a; }
+.tool-line > pre { margin-top: 6px; }
+.proposal { margin-top: 12px; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 14px; background: #fff; }

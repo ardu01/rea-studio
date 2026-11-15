@@ -98,3 +98,8 @@ export const commandRunSchema = z
   .object({ command: commandName, args: commandArgs, confirmed: z.boolean(), timeoutSec: z.number().int().min(1).max(1800).optional() })
   .strict()
 export const autonomousSchema = z.object({ enabled: z.boolean() }).strict()
+
+export const agentStartSchema = z.object({ goal: z.string().min(1).max(4000), maxSteps: z.number().int().min(1).max(200).optional() }).strict()
+export const agentAnswerSchema = z
+  .object({ runId: z.string().regex(/^ag-[a-z0-9-]{1,40}$/), callId: z.string().regex(/^c[0-9]{1,6}$/), approve: z.boolean() })
+  .strict()

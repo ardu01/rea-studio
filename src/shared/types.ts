@@ -226,6 +226,10 @@ export interface ReaBridge {
   cancelCommand(runId: string): Promise<void>
   setAutonomous(enabled: boolean): Promise<ProjectView>
   onProjectEvent(cb: (event: ProjectEvent) => void): () => void
+  startAgent(input: { goal: string; maxSteps?: number }): Promise<{ runId: string }>
+  answerAgent(input: { runId: string; callId: string; approve: boolean }): Promise<void>
+  cancelAgent(runId: string): Promise<void>
+  onAgentEvent(cb: (event: AgentEvent) => void): () => void
   shot?(name: string): Promise<void>
   shotDone?(): Promise<void>
 }
@@ -299,6 +303,7 @@ export interface ProjectView {
   project: ProjectInfo | null
   gitAvailable: boolean
   autonomous: boolean
+  agent?: AgentInfo
   templates: Array<{ id: ProjectTemplateId; label: string; summary: string }>
 }
 
@@ -354,3 +359,22 @@ export interface CommandResult {
 export type ProjectEvent =
   | { kind: 'chunk'; runId: string; stream: 'stdout' | 'stderr'; text: string }
   | { kind: 'done'; runId: string; result?: CommandResult; error?: string }
+
+export type AgentApproval =
+  | { type: 'write'; path: string; diff: string; created: boolean; added: number; removed: number }
+  | { type: 'command'; check: CommandCheck }
+
+export type AgentEvent =
+  | { kind: 'start'; runId: string; goal: string; model: string }
+  | { kind: 'message'; runId: string; text: string }
+  | { kind: 'tool'; runId: string; callId: string; tool: string; summary: string; status: 'running' | 'ok' | 'error' | 'rejected'; detail?: string }
+  | { kind: 'approval'; runId: string; callId: string; request: AgentApproval }
+  | { kind: 'thinking'; runId: string; step: number }
+  | { kind: 'end'; runId: string; status: 'finished' | 'cancelled' | 'failed' | 'limit'; text: string }
+
+export interface AgentInfo {
+  model: string
+  endpoint: string
+  local: boolean
+  running: string | null
+}

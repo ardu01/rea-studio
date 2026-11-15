@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { ArtifactEntry, GitStep, ProjectFile, ProjectTemplateId, ProjectTree, ProjectView, ReaBridge } from '../../shared/types'
 import { Badge, Button, Field, Label } from './ui'
 
@@ -263,7 +263,7 @@ function OpenProject({
     }
   }
 
-  const ctx: ProjectContext = { bridge, view, refresh, select }
+  const ctx = useMemo<ProjectContext>(() => ({ bridge, view, refresh, select }), [bridge, view, refresh, select])
   const tabs = [...extraTabs.map((item) => ({ id: item.id, label: item.label })), { id: 'archivo', label: 'Archivo' }, { id: 'cambios', label: 'Cambios' }, { id: 'historial', label: 'Historial' }]
   const changes = tree?.entries.filter((entry) => entry.status).length ?? 0
 
@@ -310,7 +310,11 @@ function OpenProject({
             ))}
           </div>
           <div style={{ marginTop: 12 }}>
-            {extraTabs.map((item) => (tab === item.id ? <div key={item.id}>{item.render(ctx)}</div> : null))}
+            {extraTabs.map((item) => (
+              <div key={item.id} role="tabpanel" hidden={tab !== item.id}>
+                {item.render(ctx)}
+              </div>
+            ))}
             {tab === 'archivo' ? (
               <article className="card">
                 {file ? (
