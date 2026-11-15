@@ -29,6 +29,16 @@ export function assertProviderId(id: string): ProviderId {
   throw new Error('Proveedor desconocido.')
 }
 
+/** El proveedor compatible apuntando a localhost (Ollama, LM Studio) puede funcionar sin clave. */
+export function keylessAllowed(id: ProviderId, settings: PublicSettings): boolean {
+  if (id !== 'compatible') return false
+  try {
+    return !endpointLeavesDevice(settings.providers.compatible.endpoint)
+  } catch {
+    return false
+  }
+}
+
 export function joinUrl(base: string, suffix: string): string {
   return `${base.replace(/\/+$/, '')}/${suffix.replace(/^\/+/, '')}`
 }
@@ -180,17 +190,21 @@ export function publicProviders(settings: PublicSettings, configured: ReadonlySe
     label: string,
     docsUrl: string,
     note: string,
-  ): ProviderPublic => ({
-    id,
-    label,
-    transport: 'api',
-    model: settings.providers[id].model,
-    endpoint: settings.providers[id].endpoint,
-    configured: configured.has(id),
-    leavesDevice: endpointLeavesDevice(settings.providers[id].endpoint),
-    docsUrl,
-    note,
-  })
+  ): ProviderPublic => {
+    const keyless = keylessAllowed(id, settings)
+    return {
+      id,
+      label,
+      transport: 'api',
+      model: settings.providers[id].model,
+      endpoint: settings.providers[id].endpoint,
+      configured: configured.has(id) || keyless,
+      keyless,
+      leavesDevice: endpointLeavesDevice(settings.providers[id].endpoint),
+      docsUrl,
+      note,
+    }
+  }
   return [
     api('openai', 'OpenAI', DOC_LINKS.openaiApi, 'Chat Completions en streaming. La clave se guarda cifrada en este equipo.'),
     api('anthropic', 'Anthropic Claude', DOC_LINKS.anthropicApi, 'API Messages nativa. No usa la sesión del navegador.'),
@@ -275,22 +289,23 @@ export async function checkProvider(opts: {
       return { id: opts.id, state: 'error', detail: (error as Error).message, evidence: 'cli-version' }
     }
   }
-  if (!opts.apiKey) {
+  if (!opts.apiKey && !keylessAllowed(opts.id, opts.settings)) {
     return { id: opts.id, state: 'not-configured', detail: 'No configurado', evidence: 'not-run' }
   }
+  const key = opts.apiKey ?? ''
   const endpoint = endpointFor(opts.id, opts.settings)
   const fetchImpl = opts.fetchImpl ?? fetch
   try {
     const response = await fetchImpl(joinUrl(endpoint, 'models'), {
       method: 'GET',
-      headers: authHeaders(opts.id, opts.apiKey),
+      headers: authHeaders(opts.id, key),
       signal: AbortSignal.timeout(20000),
     })
     if (response.status === 401 || response.status === 403) {
       return { id: opts.id, state: 'rejected', detail: `El proveedor respondió ${response.status}.`, evidence: 'models-list' }
     }
     if (!response.ok) {
-      const body = scrubProviderError(await response.text(), [opts.apiKey])
+      const body = scrubProviderError(await response.text(), [key])
       return { id: opts.id, state: 'error', detail: `HTTP ${response.status}. ${body}`.slice(0, 400), evidence: 'models-list' }
     }
     return { id: opts.id, state: 'reachable', detail: 'La lista de modelos respondió. Esto no genera una completion.', evidence: 'models-list' }
@@ -298,7 +313,7 @@ export async function checkProvider(opts: {
     return {
       id: opts.id,
       state: 'error',
-      detail: scrubProviderError((error as Error).message, [opts.apiKey]),
+      detail: scrubProviderError((error as Error).message, [key]),
       evidence: 'models-list',
     }
   }
@@ -314,6 +329,7 @@ function endpointFor(id: ProviderId, settings: PublicSettings): string {
 }
 
 function authHeaders(id: ProviderId, apiKey: string): Record<string, string> {
+  if (!apiKey) return {}
   if (id === 'anthropic') {
     return { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }
   }
@@ -342,8 +358,8 @@ export async function runModel(opts: {
   if (opts.id === 'codex-cli' || opts.id === 'claude-cli' || opts.id === 'gemini-cli') {
     return runCli(opts)
   }
-  if (!opts.apiKey) throw new Error('No configurado')
-  return runApi({ ...opts, apiKey: opts.apiKey })
+  if (!opts.apiKey && !keylessAllowed(opts.id, opts.settings)) throw new Error('No configurado')
+  return runApi({ ...opts, apiKey: opts.apiKey ?? '' })
 }
 
 async function runApi(opts: {

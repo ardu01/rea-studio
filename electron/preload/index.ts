@@ -24,6 +24,10 @@ const bridge: ReaBridge = {
   openDocs: (url) => ipcRenderer.invoke('app:open-docs', { url }),
   onJobEvent: (cb) => subscribe('jobs:event', cb),
   onChatEvent: (cb) => subscribe('chat:event', cb),
+  listOllamaModels: () => ipcRenderer.invoke('ollama:list'),
+  pullOllamaModel: (model) => ipcRenderer.invoke('ollama:pull', { model }),
+  cancelOllamaPull: (requestId) => ipcRenderer.invoke('ollama:cancel', { id: requestId }),
+  onOllamaEvent: (cb) => subscribe('ollama:event', cb),
   shot: (name) => ipcRenderer.invoke('e2e:shot', { name }),
   shotDone: () => ipcRenderer.invoke('e2e:done'),
 }

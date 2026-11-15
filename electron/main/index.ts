@@ -7,8 +7,9 @@ import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
+import { listOllamaModels, pullOllamaModel } from '../../src/core/ollama'
 import { assertInside } from '../../src/core/paths'
 import { assertProviderId, checkProvider, publicProviders, runModel } from '../../src/core/providers'
 import { scrubForLog } from '../../src/core/redact'
@@ -26,6 +27,7 @@ let settings: PublicSettings
 let secrets: SecretStore
 let jobs: JobManager
 const chats = new Map<string, AbortController>()
+const pulls = new Map<string, AbortController>()
 let shotDir: string | null = null
 
 const gotLock = app.requestSingleInstanceLock()
@@ -363,6 +365,52 @@ function registerIpc(): void {
   handle('chat:cancel', async (payload) => {
     const { id } = idSchema.parse(payload)
     chats.get(id)?.abort()
+  })
+  handle('ollama:list', async () => listOllamaModels({ endpoint: settings.providers.compatible.endpoint }))
+  handle('ollama:pull', async (payload) => {
+    const { model } = ollamaPullSchema.parse(payload)
+    for (const controller of pulls.values()) {
+      if (!controller.signal.aborted) throw new Error('Ya hay una descarga en curso. Cancélala o espera a que termine.')
+    }
+    const endpoint = settings.providers.compatible.endpoint
+    const requestId = `pull-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const controller = new AbortController()
+    pulls.set(requestId, controller)
+    let last = 0
+    void (async () => {
+      try {
+        await pullOllamaModel({
+          endpoint,
+          model,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            const now = Date.now()
+            const final = progress.status === 'Descarga completada'
+            if (!final && now - last < 150) return
+            last = now
+            mainWindow?.webContents.send('ollama:event', { kind: 'progress', requestId, model, ...progress })
+          },
+        })
+        mainWindow?.webContents.send('ollama:event', { kind: 'done', requestId, model, status: 'succeeded' })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error'
+        const cancelled = controller.signal.aborted || message === 'Cancelado.'
+        mainWindow?.webContents.send('ollama:event', {
+          kind: 'done',
+          requestId,
+          model,
+          status: cancelled ? 'cancelled' : 'failed',
+          error: cancelled ? 'Descarga cancelada.' : message,
+        })
+      } finally {
+        pulls.delete(requestId)
+      }
+    })()
+    return { requestId }
+  })
+  handle('ollama:cancel', async (payload) => {
+    const { id } = idSchema.parse(payload)
+    pulls.get(id)?.abort()
   })
   handle('app:open-docs', async (payload) => {
     const { url } = urlSchema.parse(payload)

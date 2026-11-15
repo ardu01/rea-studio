@@ -58,6 +58,8 @@ export interface ProviderPublic {
   model: string
   endpoint?: string
   configured: boolean
+  /** Servidor local que no necesita clave (proveedor compatible en localhost). */
+  keyless?: boolean
   leavesDevice: boolean
   docsUrl: string
   note: string
@@ -202,6 +204,10 @@ export interface ReaBridge {
   openDocs(url: string): Promise<void>
   onJobEvent(cb: (event: JobEvent) => void): () => void
   onChatEvent(cb: (event: ChatEvent) => void): () => void
+  listOllamaModels(): Promise<OllamaListResult>
+  pullOllamaModel(model: string): Promise<{ requestId: string }>
+  cancelOllamaPull(requestId: string): Promise<void>
+  onOllamaEvent(cb: (event: OllamaEvent) => void): () => void
   shot?(name: string): Promise<void>
   shotDone?(): Promise<void>
 }
@@ -219,3 +225,36 @@ export interface SettingsPatch {
     geminiCli: Partial<PublicSettings['providers']['geminiCli']>
   }>
 }
+
+export interface OllamaModel {
+  name: string
+  bytes: number | null
+  parameterSize: string | null
+  quantization: string | null
+}
+
+export interface OllamaListResult {
+  available: boolean
+  base: string | null
+  models: OllamaModel[]
+  detail: string
+}
+
+export interface OllamaSuggestion {
+  name: string
+  label: string
+  file?: string
+  bytes: number | null
+  uncensored: boolean
+  hint: string
+}
+
+export interface OllamaProgress {
+  status: string
+  completed: number | null
+  total: number | null
+}
+
+export type OllamaEvent =
+  | ({ kind: 'progress'; requestId: string; model: string } & OllamaProgress)
+  | { kind: 'done'; requestId: string; model: string; status: 'succeeded' | 'failed' | 'cancelled'; error?: string }
