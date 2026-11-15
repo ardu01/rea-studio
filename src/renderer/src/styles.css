@@ -277,7 +277,7 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6p
 .tabs button { border: 0; padding: 6px 12px; border-radius: 999px; font-size: 13px; background: #ececf1; color: #1d1d1f; }
 .tabs button.on { background: #1d1d1f; color: #fff; }
 .code { font-family: ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace; font-size: 12px; line-height: 1.6; background: #fbfbfd; border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 12px; padding: 10px 12px; margin: 0; white-space: pre; overflow: auto; max-height: 520px; }
-.code.diff span { display: inline-block; min-width: 100%; }
+.code.diff span { display: block; min-width: max-content; }
 .code .add { background: #e8f6ee; color: #0d5c31; }
 .code .del { background: #fdecec; color: #7d2323; }
 .code .hdr { color: #6e6e73; }

@@ -23,8 +23,7 @@ export function DiffView({ text, empty = 'Sin cambios.' }: { text: string; empty
                   : ''
         return (
           <span key={index} className={cls}>
-            {line}
-            {'\n'}
+            {line || ' '}
           </span>
         )
       })}
