@@ -84,7 +84,7 @@ export const projectCreateSchema = z
     parentDir: z.string().min(1).max(4096),
     name: z.string().min(1).max(60),
     template: z.enum(['node', 'python', 'dotnet', 'cmake']),
-    references: z.array(z.string().min(1).max(1024)).max(50),
+    references: z.array(z.string().min(1).max(1024)).min(1, 'Carga el análisis del programa original.').max(50),
   })
   .strict()
 
@@ -104,4 +104,4 @@ export const agentAnswerSchema = z
   .object({ runId: z.string().regex(/^ag-[a-z0-9-]{1,40}$/), callId: z.string().regex(/^c[0-9]{1,6}$/), approve: z.boolean() })
   .strict()
 
-export const referencesUpdateSchema = z.object({ references: z.array(z.string().min(1).max(1024)).max(50).optional() }).strict()
+export const referencesUpdateSchema = z.object({ references: z.array(z.string().min(1).max(1024)).min(1).max(50).optional() }).strict()

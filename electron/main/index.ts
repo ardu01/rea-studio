@@ -11,10 +11,10 @@ import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDi
 import { JobManager } from '../../src/core/jobs'
 import { isLocalEndpoint, listOllamaModels, ollamaChat, pullOllamaModel } from '../../src/core/ollama'
 import { AgentSessions } from '../../src/core/project/agent-session'
-import { fichaSummary, searchFicha } from '../../src/core/project/analysis-context'
+import { fichaContext, searchFicha } from '../../src/core/project/analysis-context'
 import { processGitRunner } from '../../src/core/project/git'
 import { classifyCommand, needsApproval, runProjectCommand } from '../../src/core/project/exec'
-import { ProjectService } from '../../src/core/project/service'
+import { NEED_ANALYSIS, ProjectService } from '../../src/core/project/service'
 import { assertInside } from '../../src/core/paths'
 import { assertProviderId, checkProvider, publicProviders, runModel } from '../../src/core/providers'
 import { scrubForLog } from '../../src/core/redact'
@@ -441,6 +441,8 @@ function registerIpc(): void {
     return result.canceled ? null : (result.filePaths[0] ?? null)
   })
   handle('project:create', async (payload) => {
+    const parsed = projectCreateSchema.safeParse(payload)
+    if (!parsed.success && parsed.error.issues.some((issue) => issue.path[0] === 'references')) throw new Error(NEED_ANALYSIS)
     const body = projectCreateSchema.parse(payload)
     const info = await projects.create(body)
     await rememberProject(info.root)
@@ -536,6 +538,7 @@ function registerIpc(): void {
     if (commandRuns.size > 0) throw new Error('Hay un comando en marcha. Espera a que termine.')
     const git = projects.git()
     const ficha = await projects.ficha()
+    if (!ficha) throw new Error('Este proyecto no tiene la ficha del análisis del programa original. Cárgala en la pestaña «Referencia» antes de usar el agente.')
     const runId = agents.start(
       body.goal,
       {
@@ -548,8 +551,8 @@ function registerIpc(): void {
         diff: () => git.diff(),
         run: (check, signal) => runProjectCommand({ root: project.root, check, signal }),
         chat: (messages, tools, signal) => ollamaChat({ endpoint, model, messages, tools, signal }),
-        reference: ficha ? async (query) => searchFicha(ficha, query) : undefined,
-        referenceSummary: ficha ? fichaSummary(ficha) : undefined,
+        reference: async (query) => searchFicha(ficha, query),
+        analysis: fichaContext(ficha),
         limits: body.maxSteps ? { maxSteps: body.maxSteps } : undefined,
       },
       model,

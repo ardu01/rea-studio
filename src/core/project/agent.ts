@@ -33,9 +33,18 @@ export interface AgentDeps {
   run: (check: CommandCheck, signal: AbortSignal) => Promise<CommandResult>
   /** Fase 4: búsqueda en la ficha del análisis. */
   reference?: (query: string) => Promise<string>
-  referenceSummary?: string
+  /** Contexto de la ficha del análisis del original (se inyecta siempre en el primer mensaje). */
+  analysis?: string
   limits?: Partial<AgentLimits>
 }
+
+export const RECREATE_INSTRUCTIONS = [
+  'Tu trabajo es copiar el programa original descrito en la ficha del análisis y después mejorarlo, en dos fases separadas:',
+  'FASE 1, REPRODUCCIÓN FIEL. Reproduce la aplicación original tal como la describe la ficha: las mismas funciones y responsabilidades, los mismos formatos de archivo y estructuras de datos (tipos, campos, tamaños y orden), los mismos mensajes y cadenas visibles, el mismo comportamiento y la misma estructura de módulos. En esta fase no añadas, quites ni corrijas nada, aunque parezca un error del original. Escribe pruebas que comprueben ese comportamiento. Marca cada cambio con fase="reproduccion".',
+  'FASE 2, MEJORAS. Solo cuando la reproducción esté completa y sus pruebas pasen, escribe un mensaje que empiece por «FASE 2» y mejora la copia: errores, rendimiento, seguridad e interfaz. Cada mejora es un cambio aparte con fase="mejora" y un motivo que explique qué mejora y por qué. Mantén la compatibilidad con los formatos de archivo del original salvo que el motivo explique lo contrario.',
+  'Si la ficha no dice algo, búscalo con «referencia» antes de suponer. Si sigue sin saberse, elige lo más sencillo y dilo en el resumen.',
+  'Al terminar, llama a «fin» con dos apartados: «Reproducción» (qué partes del original están y cuáles faltan) y «Mejoras» (cada una con su motivo).',
+].join('\n')
 
 export function systemPrompt(deps: AgentDeps, tools: readonly ToolName[]): string {
   const commands = deps.commands.map((item) => `${item.command} ${item.args.join(' ')}`).join('\n  ')
@@ -45,8 +54,7 @@ export function systemPrompt(deps: AgentDeps, tools: readonly ToolName[]): strin
     `Solo puedes ejecutar estos programas, sin shell: ${ALLOWED_COMMANDS.join(', ')}. Instalar paquetes necesita el permiso del usuario.`,
     `Comandos de compilación y pruebas del proyecto:\n  ${commands}`,
     'Trabaja en pasos pequeños: lee antes de editar, después de cambiar código ejecuta las pruebas, lee los errores y corrígelos.',
-    deps.reference ? 'Hay una ficha del programa analizado: consúltala con «referencia» para nombres de funciones, cadenas, formatos e importaciones. Úsala como guía; no copies código desensamblado.' : '',
-    'Cuando termines, llama a «fin» con un resumen breve en español de lo que has hecho.',
+    deps.analysis ? RECREATE_INSTRUCTIONS : 'Cuando termines, llama a «fin» con un resumen breve en español de lo que has hecho.',
     `Herramientas: ${tools.join(', ')}. Si no puedes hacer llamadas a herramientas, responde SOLO con un objeto JSON así: {"herramienta": "leer", "argumentos": {"ruta": "src/index.js"}}`,
   ]
     .filter(Boolean)
@@ -97,7 +105,7 @@ export async function runAgent(goal: string, deps: AgentDeps, runId: string, sig
     { role: 'system', content: systemPrompt(deps, enabled) },
     {
       role: 'user',
-      content: [`Objetivo: ${goal}`, `Árbol del proyecto:\n${treeSummary(tree.entries)}`, deps.referenceSummary ? `Resumen de la ficha del análisis:\n${deps.referenceSummary}` : '']
+      content: [`Objetivo: ${goal}`, `Árbol del proyecto:\n${treeSummary(tree.entries)}`, deps.analysis ? `Ficha del análisis del programa original (es la base de la copia; síguela con fidelidad):\n${deps.analysis}` : '']
         .filter(Boolean)
         .join('\n\n'),
     },
@@ -218,15 +226,19 @@ export async function runAgent(goal: string, deps: AgentDeps, runId: string, sig
         } else {
           next = String(args.contenido)
         }
+        const phase = args.fase as 'reproduccion' | 'mejora' | undefined
+        const reason = typeof args.motivo === 'string' ? args.motivo.replace(/\s+/g, ' ').trim().slice(0, 200) : ''
+        if (phase === 'mejora' && !reason) throw new Error('Cada mejora necesita un motivo: explica qué mejora y por qué.')
         const diff = unifiedDiff(previous, next, path)
         if (!diff) return { text: 'Sin cambios: el contenido es el mismo.' }
         const stats = diffStats(diff)
         if (!deps.autonomous()) {
-          const ok = await deps.approve(callId, { type: 'write', path, diff, created: previous === null, ...stats })
+          const ok = await deps.approve(callId, { type: 'write', path, diff, created: previous === null, ...stats, ...(phase ? { phase } : {}), ...(reason ? { reason } : {}) })
           if (!ok) return { text: 'El usuario rechazó este cambio. No insistas con lo mismo; pregunta o prueba otra cosa.', rejected: true, detail: diff }
         }
         await writeProjectFile(deps.root, path, next)
-        const hash = await deps.commit(`${previous === null ? 'crea' : 'modifica'} ${path}`)
+        const action = `${previous === null ? 'crea' : 'modifica'} ${path}`
+        const hash = await deps.commit(phase === 'mejora' ? `mejora: ${action} (${reason})` : phase === 'reproduccion' ? `reproduce: ${action}` : action)
         return { text: `Hecho: ${path} (+${stats.added} −${stats.removed}).`, detail: diff + (hash ? `\ncommit ${hash.slice(0, 8)}` : '') }
       }
       case 'ejecutar': {

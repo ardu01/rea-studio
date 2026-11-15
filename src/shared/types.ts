@@ -305,6 +305,8 @@ export interface ProjectView {
   gitAvailable: boolean
   autonomous: boolean
   agent?: AgentInfo
+  /** Ficha del análisis del programa original guardada en el proyecto. */
+  ficha?: { loaded: boolean }
   templates: Array<{ id: ProjectTemplateId; label: string; summary: string }>
 }
 
@@ -362,7 +364,7 @@ export type ProjectEvent =
   | { kind: 'done'; runId: string; result?: CommandResult; error?: string }
 
 export type AgentApproval =
-  | { type: 'write'; path: string; diff: string; created: boolean; added: number; removed: number }
+  | { type: 'write'; path: string; diff: string; created: boolean; added: number; removed: number; phase?: 'reproduccion' | 'mejora'; reason?: string }
   | { type: 'command'; check: CommandCheck }
 
 export type AgentEvent =

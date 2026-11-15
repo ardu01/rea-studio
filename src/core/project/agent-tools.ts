@@ -6,8 +6,10 @@ const rel = z.string().min(1).max(1024)
 export const TOOL_SCHEMAS = {
   listar: z.object({ ruta: rel.optional() }).strict(),
   leer: z.object({ ruta: rel, desde: z.number().int().min(1).optional(), hasta: z.number().int().min(1).optional() }).strict(),
-  escribir: z.object({ ruta: rel, contenido: z.string().max(512 * 1024) }).strict(),
-  editar: z.object({ ruta: rel, buscar: z.string().min(1).max(64 * 1024), reemplazar: z.string().max(64 * 1024) }).strict(),
+  escribir: z.object({ ruta: rel, contenido: z.string().max(512 * 1024), fase: z.enum(['reproduccion', 'mejora']).optional(), motivo: z.string().max(500).optional() }).strict(),
+  editar: z
+    .object({ ruta: rel, buscar: z.string().min(1).max(64 * 1024), reemplazar: z.string().max(64 * 1024), fase: z.enum(['reproduccion', 'mejora']).optional(), motivo: z.string().max(500).optional() })
+    .strict(),
   ejecutar: z.object({ comando: z.string().min(1).max(40), argumentos: z.array(z.string().max(1000)).max(40).optional() }).strict(),
   ver_diff: z.object({}).strict(),
   referencia: z.object({ consulta: z.string().min(1).max(200) }).strict(),
@@ -15,6 +17,11 @@ export const TOOL_SCHEMAS = {
 } as const
 
 export type ToolName = keyof typeof TOOL_SCHEMAS
+
+const PHASE_PROPS = {
+  fase: { type: 'string', enum: ['reproduccion', 'mejora'], description: 'reproduccion: copia fiel del original. mejora: cambio sobre la copia ya terminada.' },
+  motivo: { type: 'string', description: 'Obligatorio en las mejoras: qué mejora (errores, rendimiento, seguridad o interfaz) y por qué.' },
+}
 
 const DESCRIPTIONS: Record<ToolName, { description: string; parameters: Record<string, unknown> }> = {
   listar: {
@@ -31,13 +38,13 @@ const DESCRIPTIONS: Record<ToolName, { description: string; parameters: Record<s
   },
   escribir: {
     description: 'Crea o reemplaza un archivo de texto entero. El usuario verá el diff.',
-    parameters: { type: 'object', properties: { ruta: { type: 'string' }, contenido: { type: 'string' } }, required: ['ruta', 'contenido'] },
+    parameters: { type: 'object', properties: { ruta: { type: 'string' }, contenido: { type: 'string' }, ...PHASE_PROPS }, required: ['ruta', 'contenido'] },
   },
   editar: {
     description: 'Sustituye un fragmento exacto, que debe aparecer una sola vez, por otro. Más barato que reescribir el archivo.',
     parameters: {
       type: 'object',
-      properties: { ruta: { type: 'string' }, buscar: { type: 'string' }, reemplazar: { type: 'string' } },
+      properties: { ruta: { type: 'string' }, buscar: { type: 'string' }, reemplazar: { type: 'string' }, ...PHASE_PROPS },
       required: ['ruta', 'buscar', 'reemplazar'],
     },
   },

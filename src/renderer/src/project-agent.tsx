@@ -96,6 +96,7 @@ export function AgentPanel({ ctx }: { ctx: ProjectContext }) {
   }
 
   const running = runId !== null
+  const hasFicha = view.ficha?.loaded !== false
   return (
     <div className="stack" style={{ marginTop: 0 }}>
       <article className="card">
@@ -106,6 +107,16 @@ export function AgentPanel({ ctx }: { ctx: ProjectContext }) {
             <span className="path muted">{agent?.model || 'sin modelo'}</span>
           </div>
         </div>
+        {!hasFicha ? (
+          <div className="banner warn" role="status" style={{ marginTop: 10 }}>
+            <p>Este proyecto no tiene la ficha del análisis del programa original. Cárgala antes de usar el agente: es la base de la copia.</p>
+            <Button type="button" variant="secondary" style={{ marginTop: 8 }} onClick={() => ctx.openTab('referencia')}>Cargar el análisis…</Button>
+          </div>
+        ) : (
+          <p className="small muted" style={{ marginTop: 6 }}>
+            Primero copia fielmente el programa original según la ficha del análisis (funciones, formatos, comportamiento y estructura); después lo mejora, explicando cada mejora.
+          </p>
+        )}
         <p className="small muted" style={{ marginTop: 6 }}>
           {view.autonomous
             ? 'Modo autónomo: escribe archivos y ejecuta comandos permitidos sin preguntar. Instalar paquetes sí pregunta.'
@@ -113,7 +124,7 @@ export function AgentPanel({ ctx }: { ctx: ProjectContext }) {
           Cada cambio aceptado queda como un commit y se puede deshacer en «Historial».
         </p>
         <div className="agent-log" aria-live="polite">
-          {log.length === 0 ? <p className="small muted">Pide un objetivo pequeño y concreto, p. ej. «añade la función X y su prueba».</p> : null}
+          {log.length === 0 ? <p className="small muted">Pide un objetivo concreto, p. ej. «copia la lectura de registros del original y después mejórala».</p> : null}
           {log.map((item, index) => {
             if (item.type === 'goal') return <div key={index} className="msg user">{item.text}</div>
             if (item.type === 'message') return <div key={index} className="msg ai">{item.text}</div>
@@ -144,6 +155,12 @@ export function AgentPanel({ ctx }: { ctx: ProjectContext }) {
                 +{pending.request.added} −{pending.request.removed}
               </span>
             </div>
+            {pending.request.phase ? (
+              <p className="small" style={{ marginTop: 6 }}>
+                <span className={`pill ${pending.request.phase === 'mejora' ? 'warn' : 'ready'}`}>{pending.request.phase === 'mejora' ? 'Mejora' : 'Reproducción del original'}</span>
+                {pending.request.reason ? <span className="muted"> {pending.request.reason}</span> : null}
+              </p>
+            ) : null}
             <div style={{ marginTop: 6 }}>
               <DiffView text={pending.request.diff} />
             </div>
@@ -161,7 +178,7 @@ export function AgentPanel({ ctx }: { ctx: ProjectContext }) {
           {running ? (
             <Button type="button" variant="danger" onClick={() => runId && void bridge.cancelAgent(runId)}>Detener</Button>
           ) : (
-            <Button type="button" disabled={!goal.trim() || !agent?.local || !agent.model} onClick={() => void start()}>Empezar</Button>
+            <Button type="button" disabled={!goal.trim() || !agent?.local || !agent.model || !hasFicha} onClick={() => void start()}>Empezar</Button>
           )}
         </div>
       </article>
