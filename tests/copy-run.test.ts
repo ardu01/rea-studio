@@ -59,7 +59,9 @@ function deps(overrides: Partial<CopyDeps> = {}): CopyDeps {
         end(
           goal.includes('Ahora mejora')
             ? 'Mejoras:\nAñadí pruebas.\nPendiente:\nEl módulo de red no se ha podido recrear.'
-            : 'Reproducción:\nSe copió el núcleo.',
+            : goal.includes('Compara la copia') || goal.includes('Corrige solo')
+              ? 'Parecido:\nSin un porcentaje medido.\nPendiente:\nEl módulo de red no se ha podido recrear.'
+              : 'Reproducción:\nSe copió el núcleo.',
         ),
       ),
     }),
@@ -143,5 +145,35 @@ describe('informe y flujo de copia', () => {
     expect(created).toBe(false)
     expect(flow.state?.status).toBe('failed')
     expect(flow.state?.error).toBeTruthy()
+  })
+
+  it('usa Craft Anything para comprobar y deja el porcentaje en el informe', async () => {
+    const flow = new CopyFlow(
+      deps({
+        runCraftCheck: async () => ({
+          alike: 92,
+          pending: '',
+          raw: '{"alike":92,"pending":""}',
+          usedCraft: true,
+        }),
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    expect(flow.state?.status).toBe('done')
+    expect(flow.state?.summary?.alike).toBe(92)
+    expect(flow.state?.check?.alike).toBe(92)
+  })
+
+  it('si Craft Anything falla, sigue con nuestras herramientas y lo explica', async () => {
+    const flow = new CopyFlow(
+      deps({
+        runCraftCheck: async () => {
+          throw new Error('CLI no responde')
+        },
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    expect(flow.state?.status).toBe('done')
+    expect(flow.state?.summary?.pending).toMatch(/Craft Anything no se ha podido completar/)
   })
 })

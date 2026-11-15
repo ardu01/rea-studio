@@ -104,11 +104,11 @@ function action(
   return { id, title, summary, needsTarget, targetKind }
 }
 
-type BundledKey = 'java' | 'radare2' | 'rabin2' | 'rizin' | 'rzBin' | 'jadx'
+type BundledKey = 'java' | 'radare2' | 'rabin2' | 'rizin' | 'rzBin' | 'jadx' | 'craftAnything'
 
 function bundledPath(bundled: BundledTools | undefined, key: string): string | undefined {
   if (!bundled) return undefined
-  if (['java', 'radare2', 'rabin2', 'rizin', 'rzBin', 'jadx'].includes(key)) return bundled[key as BundledKey]
+  if (['java', 'radare2', 'rabin2', 'rizin', 'rzBin', 'jadx', 'craftAnything'].includes(key)) return bundled[key as BundledKey]
   return undefined
 }
 
@@ -738,6 +738,57 @@ function baseDetection(
   }
 }
 
+
+export const craftAnythingAdapter: ToolAdapter = {
+  id: 'craft-anything',
+  name: 'Craft Anything',
+  maturity: 'implemented',
+  verification: 'craft-anything-cli --deep --format json, sin --allow-run. El análisis es local (modo Deep con el Ghidra incluido). El original no se ejecuta.',
+  docsUrl: DOC_LINKS.craftAnything,
+  installHint: 'Incluida en el instalador de Windows (CLI oficial v0.6.1). Para usar otra, indica craft-anything-cli.',
+  actions: [
+    action(
+      'triage',
+      'Estudiar (Deep)',
+      'Abre el programa y hace un primer estudio en modo Deep, usando el Ghidra incluido cuando está. No ejecuta el original.',
+      true,
+      'any',
+    ),
+    action(
+      'report',
+      'Informe',
+      'Escribe un informe del estudio (Markdown) a partir de lo analizado, sin ejecutar el original.',
+      false,
+      'none',
+    ),
+  ],
+  async detect(ctx) {
+    const found = resolveTool(ctx, 'craftAnything', 'craft-anything-cli')
+    if (!found) return baseDetection(this, 'missing', 'No configurado. No está craft-anything-cli en PATH ni en la ruta indicada.')
+    const version = await versionOf(ctx, found.path, ['--version'])
+    const where = found.source === 'bundled' ? bundledNote(ctx, 'craft-anything') : `Encontrado. ${version}`
+    return baseDetection(this, 'ready', found.source === 'bundled' ? `${where} ${version}` : where, found.path, found.source)
+  },
+  plan(actionId, input) {
+    if (actionId !== 'triage' && actionId !== 'report') throw new Error('Acción de Craft Anything desconocida.')
+    if (actionId === 'triage' && !input.targetPath) throw new Error('Craft Anything necesita un archivo o una carpeta.')
+    const configDir = path.join(input.jobDir, 'craft-config')
+    const exe = requiredTool(input, 'craftAnything', 'craft-anything-cli')
+    const args = actionId === 'triage'
+      ? ['--deep', '--format', 'json', '--project', path.join(input.outputDir, 'craft-project'), 'triage', input.targetPath!]
+      : ['--deep', '--format', 'json', '--project', path.join(input.outputDir, 'craft-project'), 'report', '--out', path.join(input.outputDir, 'craft-report.md')]
+    if (args.includes('--allow-run')) throw new Error('La CLI de Craft Anything no puede ejecutarse con --allow-run desde REA Studio.')
+    const ghidraDir = input.bundled?.ghidra ? path.dirname(path.dirname(input.bundled.ghidra)) : undefined
+    return {
+      kind: 'process',
+      executable: exe,
+      args,
+      cwd: input.jobDir,
+      env: { CRAFT_ANYTHING_CONFIG_DIR: configDir, REA_CRAFT_GHIDRA: ghidraDir ?? '', REA_CRAFT_JAVA: input.bundled?.javaHome ?? '' },
+    }
+  },
+}
+
 export function createRegistry(): ToolAdapter[] {
   return [
     reaAdapter,
@@ -747,6 +798,7 @@ export function createRegistry(): ToolAdapter[] {
     stringsAdapter,
     metadataAdapter,
     jadxAdapter,
+    craftAnythingAdapter,
     ...FUTURE.map(futureAdapter),
   ]
 }

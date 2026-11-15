@@ -258,6 +258,57 @@
       ],
       "source": "https://github.com/skylot/jadx/tree/v1.5.6",
       "redistributable": true
+    },
+    {
+      "id": "craft-anything",
+      "name": "Craft Anything (CLI)",
+      "version": "0.6.1",
+      "url": "https://github.com/storytold/craft-anything/releases/download/v0.6.1/craft-anything-0.6.1-windows-x64-portable.zip",
+      "sha256": "bd370fbaa2b44dbc13581db5ffd2bf66924ed40e433c7902212aa17ca781de54",
+      "shaSource": "https://github.com/storytold/craft-anything/releases/download/v0.6.1/SHA256SUMS.txt",
+      "stripTopDir": true,
+      "keep": [
+        "craft-anything-cli.exe",
+        "LICENSE-MIT",
+        "LICENSE-APACHE",
+        "NOTICE",
+        "LICENSE",
+        "README.md"
+      ],
+      "dest": "craft-anything",
+      "license": "MIT o Apache-2.0 (a elección); avisos en NOTICE y créditos en ATTRIBUTION.md",
+      "licenseFiles": [
+        "LICENSE-MIT",
+        "LICENSE-APACHE",
+        "NOTICE",
+        "LICENSE",
+        "README.md"
+      ],
+      "source": "https://github.com/storytold/craft-anything/tree/v0.6.1",
+      "redistributable": true,
+      "$comment": "En Windows x64 la CLI oficial (craft-anything-cli.exe) va en el ZIP portable de la versión 0.6.1, junto al exe de la app. Solo se incluye la CLI y las licencias, no la interfaz gráfica ni portable.txt (ese marcador escribiría ajustes al lado del exe). ATTRIBUTION.md no va en el ZIP: se descarga del mismo tag.",
+      "licenseDownloads": [
+        {
+          "url": "https://raw.githubusercontent.com/storytold/craft-anything/v0.6.1/LICENSE-MIT",
+          "sha256": "777b5f0c65bd9c289cb234e32857b594745d5c76d613034870aa05bd00d32622",
+          "file": "LICENSE-MIT"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/storytold/craft-anything/v0.6.1/LICENSE-APACHE",
+          "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+          "file": "LICENSE-APACHE"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/storytold/craft-anything/v0.6.1/NOTICE",
+          "sha256": "16958e6200bd35164e2cab1dbfa3120d48123163dadc2c5b72c6c26ffb493d82",
+          "file": "NOTICE"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/storytold/craft-anything/v0.6.1/ATTRIBUTION.md",
+          "sha256": "277ac4c86c7889bfe5dab9a7321954de1e7ace36311c4bd36008dd25cc4b0265",
+          "file": "ATTRIBUTION.md"
+        }
+      ]
     }
   ],
   "npm": [

@@ -167,6 +167,9 @@ export function bridgeFor(state: AppState): ReaBridge {
     async answerCopyPackage() {
       return undefined
     },
+    async answerCopyRunOriginal() {
+      return undefined
+    },
     async copyState() {
       return null
     },

@@ -52,6 +52,7 @@ function running(partial: Partial<CopyRunState> = {}): CopyRunState {
     details: ['12:00  Detectado: Electron'],
     projectRoot: null,
     summary: null,
+    check: null,
     packageRequest: null,
     ...partial,
   }
@@ -100,7 +101,9 @@ describe('pantalla Copiar aplicación', () => {
           copied: 'Se reprodujo la interfaz de Jerry.',
           improved: 'Añadí un registro de actividad.',
           pending: 'No se ha podido copiar el módulo nativo de notificaciones.',
+          alike: 87,
         },
+        check: { round: 1, maxRounds: 3, alike: 87, pending: 'No se ha podido copiar el módulo nativo de notificaciones.', goodEnough: 90 },
       })
       copyListener?.(done)
       return done
@@ -110,7 +113,9 @@ describe('pantalla Copiar aplicación', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Elegir archivo…' }))
     expect(await screen.findByText('Detectado: Electron')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Copiar' }))
-    expect(await screen.findByRole('heading', { name: 'Se copió del original' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Parecido' })).toBeTruthy()
+    expect(screen.getByText(/87 % de parecido con el original/)).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Se copió del original' })).toBeTruthy()
     expect(screen.getByText(/interfaz de Jerry/)).toBeTruthy()
     expect(screen.getByText(/registro de actividad/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Pendiente' })).toBeTruthy()
@@ -124,10 +129,11 @@ describe('pantalla Copiar aplicación', () => {
     const bridge = bridgeFor(state)
     bridge.copyState = async () => running()
     render(<CopyScreen bridge={bridge} state={state} onOpenSettings={() => undefined} />)
-    expect(await screen.findByText(/paso 1 de 5/i)).toBeTruthy()
+    expect(await screen.findByText(/paso 1 de 6/i)).toBeTruthy()
     expect(screen.getByText('Analizando')).toBeTruthy()
     expect(screen.getByText('Creando proyecto')).toBeTruthy()
     expect(screen.getByText('Copiando')).toBeTruthy()
+    expect(screen.getByText('Comprobando')).toBeTruthy()
     expect(screen.getByText('Mejorando')).toBeTruthy()
     expect(screen.getByText('Listo')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy()

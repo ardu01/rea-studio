@@ -12,6 +12,7 @@ export const DOC_LINKS = {
   radare2: 'https://github.com/radareorg/radare2',
   rizin: 'https://rizin.re/',
   jadx: 'https://github.com/skylot/jadx',
+  craftAnything: 'https://github.com/storytold/craft-anything',
   ida: 'https://hex-rays.com/ida-pro',
   idaDownload: 'https://hex-rays.com/ida-free',
   binaryNinja: 'https://binary.ninja/',
@@ -91,6 +92,7 @@ export interface PublicSettings {
     rizin: string
     rzBin: string
     jadx: string
+    craftAnything: string
     codex: string
     claude: string
     gemini: string
@@ -250,6 +252,7 @@ export interface ReaBridge {
   cancelCopy(): Promise<CopyRunState | null>
   retryCopy(): Promise<CopyRunState | null>
   answerCopyPackage(approve: boolean): Promise<void>
+  answerCopyRunOriginal(approve: boolean): Promise<void>
   copyState(): Promise<CopyRunState | null>
   openCopyFolder(): Promise<void>
   runCopy(): Promise<{ ok: boolean; error?: string }>
@@ -406,8 +409,8 @@ export interface AgentInfo {
 }
 
 export type ProgramKind = 'dotnet' | 'javascript' | 'electron' | 'python' | 'native' | 'java'
-export type CopyStepId = 'analizando' | 'creando' | 'copiando' | 'mejorando' | 'listo'
-export type CopyRunStatus = 'idle' | 'running' | 'needs-package' | 'failed' | 'cancelled' | 'done'
+export type CopyStepId = 'analizando' | 'creando' | 'copiando' | 'comprobando' | 'mejorando' | 'listo'
+export type CopyRunStatus = 'idle' | 'running' | 'needs-package' | 'needs-run-original' | 'failed' | 'cancelled' | 'done'
 
 export interface ProgramDetection {
   sourcePath: string
@@ -444,6 +447,7 @@ export interface CopyRunState {
   details: string[]
   error?: string
   projectRoot: string | null
-  summary: { copied: string; improved: string; pending: string } | null
+  summary: { copied: string; improved: string; pending: string; alike: number | null } | null
+  check: { round: number; maxRounds: number; alike: number | null; pending: string; goodEnough: number } | null
   packageRequest: CopyPackageRequest | null
 }

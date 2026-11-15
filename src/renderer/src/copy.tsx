@@ -5,9 +5,10 @@ import { defaultProjectsDir } from '../../core/copy/names'
 import { Button, Field, Label } from './ui'
 
 const STEP_META: Array<{ id: CopyStepId; label: string; hint: string }> = [
-  { id: 'analizando', label: 'Analizando', hint: 'Lee el original con todas las herramientas que correspondan.' },
+  { id: 'analizando', label: 'Analizando', hint: 'Estudia el original en modo Deep (Craft Anything, con nuestro Ghidra). Si falla, se usan nuestras herramientas.' },
   { id: 'creando', label: 'Creando proyecto', hint: 'Prepara la carpeta, la plantilla y la ficha del análisis.' },
   { id: 'copiando', label: 'Copiando', hint: 'Reproduce con fidelidad el comportamiento del original.' },
+  { id: 'comprobando', label: 'Comprobando', hint: 'Compara la copia con el original, muestra el parecido y lo que no coincide.' },
   { id: 'mejorando', label: 'Mejorando', hint: 'Añade mejoras, cada una por separado y con su motivo.' },
   { id: 'listo', label: 'Listo', hint: 'La copia queda lista para abrir o ejecutar.' },
 ]
@@ -42,7 +43,7 @@ export function CopyScreen({
   }, [bridge])
 
   const dest = destOverride ?? source?.suggestedDest ?? destParent
-  const busy = run?.status === 'running' || run?.status === 'needs-package'
+  const busy = run?.status === 'running' || run?.status === 'needs-package' || run?.status === 'needs-run-original'
   const showProgress = run && run.status !== 'idle'
 
   async function pick(kind: 'file' | 'folder') {
@@ -103,6 +104,7 @@ export function CopyScreen({
         }}
         runMessage={runMessage}
         onAnswer={(approve) => void bridge.answerCopyPackage(approve)}
+        onAnswerRunOriginal={(approve) => void bridge.answerCopyRunOriginal(approve)}
       />
     )
   }
@@ -196,6 +198,7 @@ function ProgressView({
   onReset,
   runMessage,
   onAnswer,
+  onAnswerRunOriginal,
 }: {
   run: CopyRunState
   detailsOpen: boolean
@@ -207,19 +210,22 @@ function ProgressView({
   onReset: () => void
   runMessage: string | null
   onAnswer: (approve: boolean) => void
+  onAnswerRunOriginal: (approve: boolean) => void
 }) {
   const titles: Record<CopyStepId, string> = {
     analizando: `Copiando ${run.detection.name}`,
     creando: `Copiando ${run.detection.name}`,
     copiando: `Copiando ${run.detection.name}`,
+    comprobando: `Copiando ${run.detection.name}`,
     mejorando: `Copiando ${run.detection.name}`,
     listo: 'Listo',
   }
   const leads: Record<CopyStepId, string> = {
     analizando: 'Analizando el original. Después se creará el proyecto y se copiará la aplicación.',
     creando: 'Creando la carpeta del proyecto y la ficha del análisis.',
-    copiando: 'Reproduciendo el original con fidelidad. Después vendrán las mejoras, cada una explicada.',
-    mejorando: 'El original ya está copiado. Ahora se están añadiendo las mejoras.',
+    copiando: 'Reproduciendo el original con fidelidad. Después se comprobará la copia y, si hace falta, se corregirá.',
+    comprobando: 'Comparando la copia con el original. Verás el porcentaje de parecido y lo que aún no coincide.',
+    mejorando: 'El original ya está copiado y comprobado. Ahora se están añadiendo las mejoras.',
     listo: `${run.detection.name} ya está copiado y mejorado en su carpeta de proyecto.`,
   }
   const failed = run.status === 'failed'
@@ -240,7 +246,9 @@ function ProgressView({
         <span style={{ width: `${run.progress}%` }} />
       </div>
       <p className="small muted">
-        Paso {Math.min(stepIndex + 1, 5)} de 5 · {stepLabel}
+        Paso {Math.min(stepIndex + 1, 6)} de 6 · {stepLabel}
+        {run.check ? ` · Comprobación ${run.check.round} de ${run.check.maxRounds}` : ''}
+        {run.check?.alike != null ? ` · ${Math.round(run.check.alike)} % de parecido` : ''}
       </p>
       <div className="steps">
         {STEP_META.map((item, index) => {
@@ -278,6 +286,12 @@ function ProgressView({
       {runMessage ? <p className="small muted" style={{ marginTop: 14 }}>{runMessage}</p> : null}
       {done && run.summary ? (
         <div className="summary-box">
+          {run.summary.alike != null ? (
+            <article className="card">
+              <h2>Parecido</h2>
+              <p className="small">{Math.round(run.summary.alike)} % de parecido con el original.</p>
+            </article>
+          ) : null}
           <article className="card">
             <h2>Se copió del original</h2>
             <p className="small">{run.summary.copied}</p>
@@ -332,7 +346,38 @@ function ProgressView({
       {run.status === 'needs-package' && run.packageRequest ? (
         <PackageDialog request={run.packageRequest} dest={run.destPath} onAnswer={onAnswer} />
       ) : null}
+      {run.status === 'needs-run-original' ? (
+        <RunOriginalDialog dest={run.sourcePath} onAnswer={onAnswerRunOriginal} />
+      ) : null}
     </div>
+  )
+}
+
+function RunOriginalDialog({ dest, onAnswer }: { dest: string; onAnswer: (approve: boolean) => void }) {
+  return (
+    <>
+      <div className="overlay" />
+      <div className="modal confirm" role="dialog" aria-labelledby="copy-run-title">
+        <h2 id="copy-run-title" style={{ margin: 0, fontSize: 20, letterSpacing: '-0.03em' }}>
+          ¿Ejecutar el original?
+        </h2>
+        <p className="small" style={{ margin: '10px 0 0', lineHeight: 1.5 }}>
+          Para comparar un poco más la copia con el original haría falta ejecutarlo. El original no se lanza si no lo confirmas. Si dices que no, se sigue con una comparación sin ejecutarlo.
+        </p>
+        <div className="kv">
+          <div className="muted">Original</div>
+          <div className="path">{dest}</div>
+        </div>
+        <div className="row" style={{ marginTop: 22, justifyContent: 'flex-end' }}>
+          <Button type="button" variant="secondary" onClick={() => onAnswer(false)}>
+            Ahora no
+          </Button>
+          <Button type="button" onClick={() => onAnswer(true)}>
+            Ejecutar original
+          </Button>
+        </div>
+      </div>
+    </>
   )
 }
 

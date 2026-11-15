@@ -17,7 +17,8 @@ function base(partial: Partial<ProgramDetection> & Pick<ProgramDetection, 'kind'
 describe('plan de análisis del modo sencillo', () => {
   it('para Electron/JS lanza el análisis JavaScript de REA', () => {
     const plan = planAnalyses(base({ kind: 'electron', kindLabel: 'Electron', template: 'node', folderTarget: '/app', fileTarget: '/app/resources/app.asar' }))
-    expect(plan.map((step) => `${step.adapterId}:${step.actionId}`)).toContain('rea:analyze-javascript')
+    expect(plan[0]).toMatchObject({ adapterId: 'craft-anything', actionId: 'triage' })
+    expect(plan.map((step) => `${step.adapterId}:${step.actionId}`)).toEqual(expect.arrayContaining(['craft-anything:triage', 'craft-anything:report', 'rea:analyze-javascript']))
     expect(plan.some((step) => step.adapterId === 'ghidra')).toBe(false)
   })
 

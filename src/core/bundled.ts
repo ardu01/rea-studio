@@ -19,6 +19,8 @@ export interface BundledTools {
   rizin?: string
   rzBin?: string
   jadx?: string
+  /** CLI de Craft Anything (craft-anything-cli). */
+  craftAnything?: string
   versions: Record<string, string>
 }
 
@@ -52,6 +54,7 @@ export function locateBundledTools(
     rizin: pick('rizin', 'bin', exe('rizin')),
     rzBin: pick('rizin', 'bin', exe('rz-bin')),
     jadx: pick('jadx', 'bin', win ? 'jadx.bat' : 'jadx'),
+    craftAnything: pick('craft-anything', exe('craft-anything-cli')),
     versions: {},
   }
   try {
@@ -60,7 +63,7 @@ export function locateBundledTools(
   } catch {
     // Sin tools.json se usan las rutas igualmente; solo falta la versión.
   }
-  const any = found.rea || found.ghidra || found.java || found.radare2 || found.rabin2 || found.rizin || found.rzBin || found.jadx
+  const any = found.rea || found.ghidra || found.java || found.radare2 || found.rabin2 || found.rizin || found.rzBin || found.jadx || found.craftAnything
   return any ? found : undefined
 }
 

@@ -13,15 +13,20 @@ import type {
 import { redactUserPaths } from '../project/analysis-context.js'
 import { detectProgram, defaultProjectsDir } from './detect.js'
 import { simplifyCopyError } from './errors.js'
+import { CHECK_GOOD_ENOUGH, CHECK_MAX_ROUNDS, formatAlike, parseCraftCheck, type CraftCheckResult } from './craft.js'
 import { planAnalyses, resolveAnalysisTarget } from './plan.js'
 
-const STEPS: CopyStepId[] = ['analizando', 'creando', 'copiando', 'mejorando', 'listo']
-const PROGRESS: Record<CopyStepId, number> = { analizando: 18, creando: 36, copiando: 55, mejorando: 78, listo: 100 }
+const STEPS: CopyStepId[] = ['analizando', 'creando', 'copiando', 'comprobando', 'mejorando', 'listo']
+const PROGRESS: Record<CopyStepId, number> = { analizando: 14, creando: 28, copiando: 42, comprobando: 62, mejorando: 82, listo: 100 }
 
 const COPY_GOAL =
   'Reproduce con fidelidad el programa original descrito en la ficha. No hagas mejoras en esta fase. Cuando la reproducción esté completa y las pruebas pasen, llama a fin con los apartados Reproducción y Pendiente (módulos, funciones o partes que no se han podido copiar, con el motivo). Si el análisis es incompleto, indícalo en Pendiente en lugar de inventar código.'
 const IMPROVE_GOAL =
   'Ahora mejora la copia. Cada mejora es un cambio aparte con su motivo. Mantén la compatibilidad con los formatos del original. Al terminar, llama a fin con los apartados Mejoras y Pendiente (qué no se ha podido recrear o mejorar y por qué).'
+const CHECK_GOAL =
+  'Compara la copia (el proyecto actual) con el programa original descrito en la ficha. Lista lo que no coincide, con el motivo. No ejecutes el original. No inventes un porcentaje de parecido: solo indícalo si aparece en el informe de Craft Anything. Al terminar, llama a fin con los apartados Parecido (si hay un porcentaje medido) y Pendiente.'
+const CHECK_FIX_GOAL =
+  'Corrige solo lo indicado en Pendiente de la última comprobación, con fidelidad al original. No hagas mejoras nuevas. No ejecutes el original. Al terminar, llama a fin con los apartados Reproducción y Pendiente.'
 
 export interface CopyJobStart {
   adapterId: string
@@ -42,6 +47,8 @@ export interface CopyDeps {
   workspace: () => string | null
   emit: (state: CopyRunState) => void
   detect?: (sourcePath: string, opts?: { destParent?: string }) => Promise<ProgramDetection>
+  /** Compara la copia con el original mediante Craft Anything (sin --allow-run). */
+  runCraftCheck?: (input: { originalPath: string; copyRoot: string; allowRun: boolean }) => Promise<CraftCheckResult>
 }
 
 export interface AgentHandlers {
@@ -53,6 +60,7 @@ export class CopyFlow {
   private current: CopyRunState | null = null
   private abort = new AbortController()
   private packageWait: { resolve: (ok: boolean) => void } | null = null
+  private runOriginalWait: { resolve: (ok: boolean) => void } | null = null
   private activeJobId: string | null = null
   private activeAgentId: string | null = null
   private running: Promise<void> | null = null
@@ -93,6 +101,7 @@ export class CopyFlow {
       details: [],
       projectRoot: null,
       summary: null,
+      check: null,
       packageRequest: null,
     }
     this.log(`Detectado: ${detection.kindLabel} (${detection.templateLabel})`)
@@ -119,6 +128,10 @@ export class CopyFlow {
       this.packageWait.resolve(false)
       this.packageWait = null
     }
+    if (this.runOriginalWait) {
+      this.runOriginalWait.resolve(false)
+      this.runOriginalWait = null
+    }
     if (this.current && this.current.status === 'running') {
       this.fail('Se ha cancelado la copia.', 'cancelled')
     }
@@ -137,6 +150,17 @@ export class CopyFlow {
     this.packageWait = null
     if (this.current) {
       this.current = { ...this.current, status: 'running', packageRequest: null }
+      this.push()
+    }
+    wait.resolve(approve)
+  }
+
+  answerRunOriginal(approve: boolean): void {
+    if (!this.runOriginalWait) return
+    const wait = this.runOriginalWait
+    this.runOriginalWait = null
+    if (this.current) {
+      this.current = { ...this.current, status: 'running' }
       this.push()
     }
     wait.resolve(approve)
@@ -166,6 +190,8 @@ export class CopyFlow {
       this.deps.setAutonomous(true)
       const copied = await this.runPhase('copiando', COPY_GOAL)
       this.thrownIfAborted()
+      const checked = await this.runChecks(state.detection)
+      this.thrownIfAborted()
       let improved = ''
       try {
         improved = await this.runPhase('mejorando', IMPROVE_GOAL)
@@ -187,6 +213,7 @@ export class CopyFlow {
           copied: copied || 'Reproducción del original a partir de la ficha.',
           improved: improved || 'Mejoras aplicadas sobre la copia.',
           pending,
+          alike: this.require().check?.alike ?? null,
         },
         packageRequest: null,
       }
@@ -277,9 +304,9 @@ export class CopyFlow {
     }
   }
 
-  private async runPhase(step: 'copiando' | 'mejorando', goal: string): Promise<string> {
+  private async runPhase(step: 'copiando' | 'comprobando' | 'mejorando', goal: string): Promise<string> {
     this.setStep(step)
-    this.log(step === 'copiando' ? 'Reproduciendo el original con fidelidad.' : 'Añadiendo mejoras, cada una con su motivo.')
+    this.log(step === 'copiando' ? 'Reproduciendo el original con fidelidad.' : step === 'comprobando' ? 'Comparando la copia con el original.' : 'Añadiendo mejoras, cada una con su motivo.')
     const { runId, done } = await this.deps.startAgent(goal, {
       onEvent: (event) => {
         if (event.kind === 'message' && event.text.trim()) this.log(event.text.trim().split('\n')[0]!.slice(0, 200))
@@ -308,10 +335,98 @@ export class CopyFlow {
       if (pending && pending.toLowerCase() !== 'nada' && pending.toLowerCase() !== 'nada pendiente.') {
         this.analysisPending.push(pending)
       }
-      return extractSection(end.text, step === 'copiando' ? 'Reproducción' : 'Mejoras') || end.text.trim()
+      return extractSection(end.text, step === 'copiando' ? 'Reproducción' : step === 'comprobando' ? 'Pendiente' : 'Mejoras') || end.text.trim()
     } finally {
       this.activeAgentId = null
     }
+  }
+
+
+  private async runChecks(detection: ProgramDetection): Promise<void> {
+    this.setStep('comprobando')
+    this.log('Comparando la copia con el original. El original no se ejecuta sin tu confirmación.')
+    let allowRun = false
+    let last: CraftCheckResult | null = null
+    for (let round = 1; round <= CHECK_MAX_ROUNDS; round += 1) {
+      this.thrownIfAborted()
+      this.current = {
+        ...this.require(),
+        check: {
+          round,
+          maxRounds: CHECK_MAX_ROUNDS,
+          alike: last?.alike ?? null,
+          pending: last?.pending ?? '',
+          goodEnough: CHECK_GOOD_ENOUGH,
+        },
+      }
+      this.log(`Comprobación ${round} de ${CHECK_MAX_ROUNDS}.`)
+      this.push()
+      const projectRoot = this.require().projectRoot
+      const original = detection.fileTarget ?? detection.sourcePath
+      if (this.deps.runCraftCheck && projectRoot) {
+        try {
+          last = await this.deps.runCraftCheck({ originalPath: original, copyRoot: projectRoot, allowRun })
+          this.log(last.usedCraft ? 'Craft Anything ha comparado la copia con el original.' : 'Craft Anything no ha podido comparar; sigo con la ficha y las pruebas.')
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Error desconocido.'
+          this.log(`Craft Anything no ha podido comprobar (${message}). Uso nuestras herramientas como alternativa.`)
+          this.analysisPending.push(`La comprobación de Craft Anything no se ha podido completar: ${message}`)
+          last = { alike: null, pending: '', raw: '', usedCraft: false }
+        }
+        if (last.needsRun && !allowRun) {
+          this.log('Para una comparación más completa haría falta ejecutar el original.')
+          allowRun = await this.askRunOriginal()
+          if (allowRun) {
+            this.log('Has confirmado ejecutar el original para esta comprobación.')
+            round -= 1
+            continue
+          }
+          this.log('No se ejecutará el original. Sigo con una comparación sin lanzarlo.')
+          this.analysisPending.push('No se ha ejecutado el original: la comparación es estática.')
+        }
+      }
+      if (!last?.pending && !last?.alike) {
+        const text = await this.runPhase('comprobando', CHECK_GOAL)
+        last = {
+          alike: parseCraftCheck(text).alike,
+          pending: parseCraftCheck(text).pending || text,
+          raw: text,
+          usedCraft: Boolean(last?.usedCraft),
+        }
+      }
+      const alikeText = formatAlike(last.alike)
+      this.log(alikeText)
+      if (last.pending) this.analysisPending.push(last.pending)
+      this.current = {
+        ...this.require(),
+        check: {
+          round,
+          maxRounds: CHECK_MAX_ROUNDS,
+          alike: last.alike,
+          pending: last.pending || 'Nada pendiente.',
+          goodEnough: CHECK_GOOD_ENOUGH,
+        },
+      }
+      this.push()
+      const good = last.alike != null && last.alike >= CHECK_GOOD_ENOUGH && !last.pending
+      if (good || round === CHECK_MAX_ROUNDS) break
+      if (last.pending && last.pending.toLowerCase() !== 'nada pendiente.') {
+        this.log('Hay diferencias: se intenta una corrección antes de volver a comprobar.')
+        await this.runPhase('comprobando', CHECK_FIX_GOAL)
+        last = { ...last, pending: '', alike: last.alike }
+      } else {
+        break
+      }
+    }
+  }
+
+  private async askRunOriginal(): Promise<boolean> {
+    const st = this.require()
+    this.current = { ...st, status: 'needs-run-original' }
+    this.push()
+    return await new Promise<boolean>((resolve) => {
+      this.runOriginalWait = { resolve }
+    })
   }
 
   private setStep(step: CopyStepId): void {
@@ -346,6 +461,7 @@ export class CopyFlow {
       error,
       projectRoot: null,
       summary: null,
+      check: null,
       packageRequest: null,
     }
   }
@@ -379,9 +495,9 @@ export function formatPending(notes: string[]): string {
 }
 
 export function extractSection(text: string, heading: string): string {
-  const re = new RegExp(`${heading}\\s*[:\\-]?\\s*([\\s\\S]*?)(?=\\n\\s*(?:Reproducción|Mejoras|Pendiente)\\s*[:\\-]|$)`, 'i')
+  const re = new RegExp(`${heading}\\s*[:\\-]?\\s*([\\s\\S]*?)(?=\\n\\s*(?:Reproducción|Mejoras|Pendiente|Parecido)\\s*[:\\-]|$)`, 'i')
   const m = text.match(re)
   return m?.[1]?.trim() ?? ''
 }
 
-export { STEPS, COPY_GOAL, IMPROVE_GOAL }
+export { STEPS, COPY_GOAL, IMPROVE_GOAL, CHECK_GOAL, CHECK_FIX_GOAL, CHECK_MAX_ROUNDS, CHECK_GOOD_ENOUGH }

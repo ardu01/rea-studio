@@ -57,6 +57,7 @@ const bridge: ReaBridge = {
   cancelCopy: () => ipcRenderer.invoke('copy:cancel'),
   retryCopy: () => ipcRenderer.invoke('copy:retry'),
   answerCopyPackage: (approve) => ipcRenderer.invoke('copy:answer-package', { approve }),
+  answerCopyRunOriginal: (approve) => ipcRenderer.invoke('copy:answer-run-original', { approve }),
   copyState: () => ipcRenderer.invoke('copy:state'),
   openCopyFolder: () => ipcRenderer.invoke('copy:open-folder'),
   runCopy: () => ipcRenderer.invoke('copy:run'),

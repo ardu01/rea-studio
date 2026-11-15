@@ -21,6 +21,7 @@ const T = {
   radare: 5 * 60_000,
   ghidra: 30 * 60_000,
   jadx: 20 * 60_000,
+  craft: 30 * 60_000,
 }
 
 /** Máximo de módulos a los que se lanza Ghidra, además del ejecutable principal. */
@@ -33,6 +34,27 @@ export function planAnalyses(detection: ProgramDetection): AnalysisStep[] {
   const kind = detection.kind
   const steps: AnalysisStep[] = []
   const hasFile = Boolean(detection.fileTarget) || detection.sourceKind === 'file'
+  // Craft Anything es el motor principal (Deep + nuestro Ghidra). Nuestras herramientas quedan como alternativa.
+  const craftTarget = detection.fileTarget ?? (detection.sourceKind === 'file' ? detection.sourcePath : detection.folderTarget ?? detection.sourcePath)
+  if (craftTarget) {
+    steps.push({
+      adapterId: 'craft-anything',
+      actionId: 'triage',
+      target: detection.fileTarget || detection.sourceKind === 'file' ? 'file' : 'folder',
+      targetPath: craftTarget,
+      timeoutMs: T.craft,
+      optional: true,
+      label: 'Craft Anything · estudio Deep',
+    })
+    steps.push({
+      adapterId: 'craft-anything',
+      actionId: 'report',
+      target: 'source',
+      timeoutMs: T.craft,
+      optional: true,
+      label: 'Craft Anything · informe',
+    })
+  }
   if (hasFile) {
     steps.push({ adapterId: 'metadata', actionId: 'inspect', target: 'file', timeoutMs: T.meta, optional: true, label: 'Metadatos' })
     steps.push({ adapterId: 'strings', actionId: 'extract', target: 'file', timeoutMs: T.strings, optional: true, label: 'Cadenas' })
