@@ -243,6 +243,17 @@ export interface ReaBridge {
   answerAgent(input: { runId: string; callId: string; approve: boolean }): Promise<void>
   cancelAgent(runId: string): Promise<void>
   onAgentEvent(cb: (event: AgentEvent) => void): () => void
+  chooseFolder(): Promise<string | null>
+  chooseDestDir(): Promise<string | null>
+  detectProgram(path: string, destParent?: string): Promise<ProgramDetection>
+  startCopy(input: { sourcePath: string; destParent?: string }): Promise<CopyRunState>
+  cancelCopy(): Promise<CopyRunState | null>
+  retryCopy(): Promise<CopyRunState | null>
+  answerCopyPackage(approve: boolean): Promise<void>
+  copyState(): Promise<CopyRunState | null>
+  openCopyFolder(): Promise<void>
+  runCopy(): Promise<{ ok: boolean; error?: string }>
+  onCopyEvent(cb: (state: CopyRunState) => void): () => void
   shot?(name: string): Promise<void>
   shotDone?(): Promise<void>
 }
@@ -294,7 +305,7 @@ export type OllamaEvent =
   | ({ kind: 'progress'; requestId: string; model: string } & OllamaProgress)
   | { kind: 'done'; requestId: string; model: string; status: 'succeeded' | 'failed' | 'cancelled'; error?: string }
 
-export type ProjectTemplateId = 'node' | 'python' | 'dotnet' | 'cmake'
+export type ProjectTemplateId = 'node' | 'python' | 'dotnet' | 'cmake' | 'java'
 
 export interface ProjectCommand {
   label: string
@@ -392,4 +403,47 @@ export interface AgentInfo {
   endpoint: string
   local: boolean
   running: string | null
+}
+
+export type ProgramKind = 'dotnet' | 'javascript' | 'electron' | 'python' | 'native' | 'java'
+export type CopyStepId = 'analizando' | 'creando' | 'copiando' | 'mejorando' | 'listo'
+export type CopyRunStatus = 'idle' | 'running' | 'needs-package' | 'failed' | 'cancelled' | 'done'
+
+export interface ProgramDetection {
+  sourcePath: string
+  sourceKind: 'file' | 'folder'
+  name: string
+  kind: ProgramKind | 'unknown'
+  kindLabel: string
+  template: ProjectTemplateId | null
+  templateLabel: string | null
+  suggestedDest: string
+  fileTarget?: string
+  folderTarget?: string
+  reason?: string
+  /** DLL o módulos del mismo programa, para analizarlos uno a uno. */
+  modules?: Array<{ path: string; name: string; bytes: number }>
+  note?: string
+}
+
+export interface CopyPackageRequest {
+  display: string
+  command: string
+  args: string[]
+  network: boolean
+}
+
+export interface CopyRunState {
+  status: CopyRunStatus
+  step: CopyStepId
+  progress: number
+  sourcePath: string
+  destPath: string
+  destParent: string
+  detection: ProgramDetection
+  details: string[]
+  error?: string
+  projectRoot: string | null
+  summary: { copied: string; improved: string; pending: string } | null
+  packageRequest: CopyPackageRequest | null
 }

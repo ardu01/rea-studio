@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { AppState, Detection, ReaBridge } from '../../shared/types'
-import { ArtifactsScreen, ChatScreen, HomeScreen, JobsScreen, Onboarding, SettingsScreen, ToolsScreen } from './screens'
+import { ArtifactsScreen, ChatScreen, JobsScreen, Onboarding, SettingsScreen, ToolsScreen } from './screens'
 import { Button } from './ui'
 import { ProjectScreen } from './project'
 import { CommandsPanel } from './project-commands'
 import { AgentPanel } from './project-agent'
 import { ReferencePanel } from './project-reference'
+import { CopyScreen } from './copy'
 
 type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'proyecto' | 'conversacion' | 'ajustes'
 
@@ -110,17 +111,35 @@ export function App() {
           </div>
         </div>
         <nav className="nav">
-          {NAV.map((item) => (
-            <button key={item.id} type="button" aria-current={route === item.id ? 'page' : undefined} onClick={() => setRoute(item.id)}>
-              {item.label}
-            </button>
-          ))}
+          {(['inicio', 'conversacion', 'ajustes'] as Route[]).map((id) => {
+            const item = NAV.find((entry) => entry.id === id)!
+            return (
+              <button key={item.id} type="button" aria-current={route === item.id ? 'page' : undefined} onClick={() => setRoute(item.id)}>
+                {item.label}
+              </button>
+            )
+          })}
+          <div className="nav-label">Avanzado</div>
+          {(['herramientas', 'trabajos', 'artefactos', 'proyecto'] as Route[]).map((id) => {
+            const item = NAV.find((entry) => entry.id === id)!
+            return (
+              <button
+                key={item.id}
+                type="button"
+                className="sub"
+                aria-current={route === item.id ? 'page' : undefined}
+                onClick={() => setRoute(item.id)}
+              >
+                {item.label}
+              </button>
+            )
+          })}
         </nav>
-        <p className="side-note">Análisis local. Solo archivos que tengas autorización para examinar.</p>
+        <p className="side-note">Análisis local. Solo archivos de los que eres dueño del código.</p>
       </aside>
       <main className="main">
         {error ? <p className="banner">{error}</p> : null}
-        {route === 'inicio' ? <HomeScreen bridge={bridge} state={state} onState={setState} onOpen={setRoute} /> : null}
+        {route === 'inicio' ? <CopyScreen bridge={bridge} state={state} onOpenSettings={() => setRoute('ajustes')} /> : null}
         {route === 'herramientas' ? (
           <ToolsScreen bridge={bridge} state={state} onState={setState} detections={detections} onDetections={setDetections} />
         ) : null}

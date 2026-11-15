@@ -141,6 +141,15 @@ function bundledNote(ctx: AdapterContext, id: string): string {
   return version ? `Incluida con REA Studio (${version}).` : 'Incluida con REA Studio.'
 }
 
+/** Primera línea de la versión, sin el retorno de carro de Windows (\r). */
+export function firstVersionLine(stdout: string, stderr = ''): string {
+  const line = `${stdout}\n${stderr}`
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .find((item) => item)
+  return (line ?? '').slice(0, 180) || 'sin versión'
+}
+
 async function versionOf(
   ctx: AdapterContext,
   executable: string,
@@ -148,8 +157,7 @@ async function versionOf(
 ): Promise<string> {
   try {
     const result = await ctx.runVersion(executable, args)
-    const text = `${result.stdout}\n${result.stderr}`.trim().split('\n')[0] ?? ''
-    return text.slice(0, 180) || 'sin versión'
+    return firstVersionLine(result.stdout, result.stderr)
   } catch (error) {
     return `no se pudo ejecutar: ${(error as Error).message}`
   }

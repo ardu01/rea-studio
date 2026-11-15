@@ -103,6 +103,19 @@ export const COMMAND_RULES: Record<string, Rule> = {
     if (sub === 'get' || (sub === 'mod' && ['download', 'tidy'].includes(args[args.indexOf('mod') + 1] ?? ''))) return install
     return `go ${sub ?? ''} no está en la lista permitida.`
   },
+  javac: (args) => {
+    if (args.some((arg) => arg === '-J' || arg.startsWith('-J'))) return 'javac no admite -J aquí.'
+    return normal
+  },
+  java: (args) => {
+    if (args.includes('-jar')) {
+      const jar = args[args.indexOf('-jar') + 1]
+      if (!jar) return 'Indica el archivo .jar del proyecto.'
+      return normal
+    }
+    if (args.some((arg) => arg === '-e' || arg.startsWith('--source') || arg === '-jar')) return 'Esa opción de java no está permitida.'
+    return normal
+  },
   git: (args) => {
     const sub = firstWord(args)
     if (sub && ['status', 'diff', 'log'].includes(sub)) {
