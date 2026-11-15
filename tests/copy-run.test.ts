@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { CopyFlow, extractSection, formatPending, type CopyDeps } from '../src/core/copy/run'
 import type { AgentEvent, JobRecord, ProgramDetection, ProjectInfo } from '../src/shared/types'
@@ -176,4 +177,76 @@ describe('informe y flujo de copia', () => {
     expect(flow.state?.status).toBe('done')
     expect(flow.state?.summary?.pending).toMatch(/Craft Anything no se ha podido completar/)
   })
+
+  it('el informe de Craft Anything usa el proyecto del estudio, sin objetivo, y no para el análisis', async () => {
+    const calls: Array<{ step: string; target?: string }> = []
+    const flow = new CopyFlow(
+      deps({
+        listReadyTools: async () => ['craft-anything', 'metadata', 'strings', 'rea'],
+        runJob: async (input) => {
+          calls.push({ step: `${input.adapterId}:${input.actionId}`, target: input.targetPath })
+          return job({ id: `job-${input.adapterId}-${input.actionId}`, artifacts: [`/ws/${input.adapterId}-${input.actionId}.txt`] })
+        },
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    const report = calls.find((call) => call.step === 'craft-anything:report')
+    expect(report?.target).toBe(path.join('/ws', 'jobs', 'job-craft-anything-triage', 'output', 'craft-project'))
+    expect(flow.state?.details.join('\n')).toMatch(/Craft Anything · informe: terminado/)
+  })
+
+  it('si el estudio de Craft Anything falla, el informe se omite y el análisis sigue', async () => {
+    const calls: string[] = []
+    const flow = new CopyFlow(
+      deps({
+        listReadyTools: async () => ['craft-anything', 'metadata', 'strings', 'rea'],
+        runJob: async (input) => {
+          calls.push(`${input.adapterId}:${input.actionId}`)
+          if (input.adapterId === 'craft-anything') return job({ status: 'failed', error: 'sin memoria', artifacts: [] })
+          return job({ id: `${input.adapterId}-${input.actionId}`, artifacts: [`/ws/${input.adapterId}.txt`] })
+        },
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    expect(calls).not.toContain('craft-anything:report')
+    expect(flow.state?.details.join('\n')).toMatch(/no hay estudio de Craft Anything/)
+    expect(flow.state?.status).toBe('done')
+  })
+
+  it('un paso opcional que no arranca (error al lanzarlo) no para el análisis', async () => {
+    const flow = new CopyFlow(
+      deps({
+        listReadyTools: async () => ['craft-anything', 'metadata', 'strings', 'rea'],
+        runJob: async (input) => {
+          if (input.adapterId === 'craft-anything') throw new Error('Esta acción no admite un objetivo.')
+          return job({ id: `${input.adapterId}-${input.actionId}`, artifacts: [`/ws/${input.adapterId}.txt`] })
+        },
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    expect(flow.state?.status).toBe('done')
+    expect(flow.state?.details.join('\n')).toMatch(/no se ha podido lanzar/)
+  })
+
+  it('el registro no presenta la plantilla de la copia como el lenguaje del original', async () => {
+    const flow = new CopyFlow(deps())
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    const details = flow.state?.details.join('\n') ?? ''
+    expect(details).not.toMatch(/Detectado: Programa nativo \(C\/C\+\+ con CMake\)/)
+    expect(details).toMatch(/Detectado: Programa nativo\./)
+    expect(details).toMatch(/No se sabe en qué lenguaje se escribió el original/)
+  })
+
+  it('si Craft Anything no puede comparar, lo dice con el motivo y no inventa un parecido', async () => {
+    const flow = new CopyFlow(
+      deps({
+        runCraftCheck: async () => ({ alike: null, pending: '', raw: '', usedCraft: false, reason: 'solo compara proyectos creados con su reconstrucción (craft.json)' }),
+      }),
+    )
+    await flow.start({ sourcePath: '/app/app.exe', destParent: '/out' })
+    const details = flow.state?.details.join('\n') ?? ''
+    expect(details).toMatch(/Craft Anything no ha comparado \(solo compara proyectos/)
+    expect(details).not.toMatch(/Craft Anything ha comparado/)
+  })
 })
+

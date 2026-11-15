@@ -233,12 +233,12 @@ describe('trabajos, cancelación y secretos', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('ejecuta un sustituto de analyzeHeadless y escribe el resumen', async () => {
+  it('ejecuta un sustituto de analyzeHeadless (que, como el real, exige la carpeta del proyecto) y escribe el resumen', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'rea-ghi-'))
     const workspace = path.join(dir, 'ws')
     const launcher = await writeExe(
       path.join(dir, 'analyzeHeadless'),
-      `#!${process.execPath}\nconst fs=require('fs');const a=process.argv;const i=a.indexOf('ExportSummary.java');fs.mkdirSync(require('path').dirname(a[i+1]),{recursive:true});fs.writeFileSync(a[i+1], '{"name":"sample"}\\n');process.stdout.write('ANALYZE\\n')\n`,
+      `#!${process.execPath}\nconst fs=require('fs');const a=process.argv;if(!fs.existsSync(a[2])){process.stderr.write('ERROR Abort due to error: Directory not found: '+a[2]+'\\n');process.exit(1)}const i=a.indexOf('ExportSummary.java');fs.mkdirSync(require('path').dirname(a[i+1]),{recursive:true});fs.writeFileSync(a[i+1], '{"name":"sample"}\\n');process.stdout.write('ANALYZE\\n')\n`,
     )
     const java = await writeExe(
       path.join(dir, 'java'),

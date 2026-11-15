@@ -61,6 +61,22 @@ export async function writeCraftConfig(configDir: string, opts: { ghidraDir?: st
   return file
 }
 
+/** Carpeta del proyecto de Craft Anything que deja un estudio («triage») dentro de la salida de su trabajo. */
+export const CRAFT_PROJECT_DIR = 'craft-project'
+
+export function craftProjectDir(outputDir: string): string {
+  return path.join(outputDir, CRAFT_PROJECT_DIR)
+}
+
+/** Archivo que marca un proyecto de reconstrucción de Craft Anything (el único que admite «rebuild-check»). */
+export const CRAFT_REBUILD_MARKER = 'craft.json'
+
+/** Argumentos de «rebuild-check» según su ayuda real (0.6.1): --project <carpeta> y --wait-minutes 1..60. */
+export function craftRebuildCheckArgs(projectRoot: string, waitMinutes = 30): string[] {
+  const minutes = Math.min(60, Math.max(1, Math.round(waitMinutes)))
+  return [...craftGlobalArgs({ deep: true }), 'rebuild-check', '--project', projectRoot, '--wait-minutes', String(minutes)]
+}
+
 export function craftEnv(configDir: string): Record<string, string> {
   return { [CRAFT_CONFIG_ENV]: configDir }
 }
@@ -78,6 +94,8 @@ export interface CraftCheckResult {
   raw: string
   usedCraft: boolean
   needsRun?: boolean
+  /** Por qué Craft Anything no ha comparado, si no lo ha hecho. */
+  reason?: string
 }
 
 /** Extrae un porcentaje de parecido y el texto pendiente de una salida JSON o de texto de Craft Anything. */
@@ -89,6 +107,13 @@ export function parseCraftCheck(text: string): CraftCheckResult {
   const json = extractJson(raw)
   if (json && typeof json === 'object' && !Array.isArray(json)) {
     const rec = json as Record<string, unknown>
+    const err = rec.error
+    if (err && typeof err === 'object') {
+      const message = (err as Record<string, unknown>).message
+      return { alike: null, pending: '', raw, usedCraft: false, reason: typeof message === 'string' ? message : 'Craft Anything ha devuelto un error.' }
+    }
+    const result = rec.result
+    if (result && typeof result === 'object' && !Array.isArray(result)) Object.assign(rec, result as Record<string, unknown>)
     alike = numberish(rec.alike ?? rec.similarity ?? rec.score ?? rec.percent ?? rec.percentage)
     const pend = rec.pending ?? rec.mismatches ?? rec.remaining ?? rec.diff
     if (typeof pend === 'string') pending = pend

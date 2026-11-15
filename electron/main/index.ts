@@ -25,7 +25,7 @@ import { APP_VERSION, DOC_LINK_LIST, type AgentEvent, type AppState, type ChatLi
 import { CopyFlow, type AgentHandlers } from '../../src/core/copy/run'
 import { detectProgram } from '../../src/core/copy/detect'
 import { launchCommand } from '../../src/core/copy/launch'
-import { assertNoAllowRun, craftEnv, ghidraInstallDir, parseCraftCheck, writeCraftConfig } from '../../src/core/copy/craft'
+import { CRAFT_REBUILD_MARKER, assertNoAllowRun, craftEnv, craftRebuildCheckArgs, ghidraInstallDir, parseCraftCheck, writeCraftConfig } from '../../src/core/copy/craft'
 
 const ALLOWED_DOCS = new Set(DOC_LINK_LIST)
 
@@ -744,25 +744,35 @@ function attachCopyFlow(): void {
     runCraftCheck: async ({ originalPath, copyRoot, allowRun }) => {
       const bundled = bundledTools()
       const cli = bundled?.craftAnything
-      if (!cli) return { alike: null, pending: '', raw: '', usedCraft: false }
+      if (!cli) return { alike: null, pending: '', raw: '', usedCraft: false, reason: 'no está incluido' }
+      void originalPath
+      // «rebuild-check» (ayuda real de 0.6.1) solo compara proyectos de reconstrucción de Craft Anything,
+      // que llevan craft.json. Las copias de REA no lo son: no se finge una comparación con un informe vacío.
+      if (!existsSync(path.join(copyRoot, CRAFT_REBUILD_MARKER))) {
+        return {
+          alike: null,
+          pending: '',
+          raw: '',
+          usedCraft: false,
+          reason: 'solo compara proyectos creados con su reconstrucción (craft.json)',
+        }
+      }
       const configDir = path.join(copyAnalysisRoot ?? app.getPath('userData'), 'analisis-craft')
       await writeCraftConfig(configDir, {
         ghidraDir: ghidraInstallDir(bundled?.ghidra),
         javaHome: bundled?.javaHome,
         runtimeStudy: allowRun,
       })
-      const args = ['--deep', '--format', 'json', '--project', path.join(copyRoot, '.rea', 'craft-check'), 'report']
+      const args = craftRebuildCheckArgs(copyRoot, 30)
       assertNoAllowRun(args)
-      void originalPath
       const result = await runProcess({
         command: cli,
         args,
         cwd: copyRoot,
-        timeoutMs: 20 * 60_000,
+        timeoutMs: 35 * 60_000,
         env: { ...allowedEnv(), ...craftEnv(configDir) },
       })
-      const parsed = parseCraftCheck(`${result.stdout}\n${result.stderr}`)
-      return { ...parsed, usedCraft: true }
+      return parseCraftCheck(`${result.stdout}\n${result.stderr}`)
     },
     workspace: () => copyAnalysisRoot ?? settings.workspacePath,
     emit: (state) => mainWindow?.webContents.send('copy:event', state),

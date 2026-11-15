@@ -4,6 +4,7 @@ import { lstat, open, readdir, realpath, stat, writeFile } from 'node:fs/promise
 import path from 'node:path'
 import { ghidraJavaMin, javaEnv, type BundledTools, type ToolSource } from './bundled.js'
 import { findOnPath } from './command.js'
+import { assertNoAllowRun, craftEnv, craftGlobalArgs, craftProjectDir } from './copy/craft.js'
 import { assertAbsoluteUserPath } from './paths.js'
 import type { Detection, TargetKind, ToolActionInfo, ToolMaturity } from '../shared/types.js'
 import { DOC_LINKS } from '../shared/types.js'
@@ -39,6 +40,8 @@ export interface ProcessPlan {
   stdin?: string
   /** Variables que se añaden al entorno permitido (por ejemplo JAVA_HOME para Ghidra y JADX). */
   env?: Record<string, string>
+  /** Carpetas que deben existir antes de lanzar (dentro de la carpeta del trabajo). */
+  mkdirs?: string[]
 }
 
 export interface LocalRunContext {
@@ -366,6 +369,8 @@ export const ghidraAdapter: ToolAdapter = {
       kind: 'process',
       env: planJavaEnv(input),
       executable: launcher,
+      // analyzeHeadless no crea la carpeta del proyecto: sin ella aborta con «Directory not found».
+      mkdirs: [path.join(input.jobDir, 'ghidra-project')],
       args: ghidraArgv({
         projectDir: path.join(input.jobDir, 'ghidra-project'),
         target: input.targetPath,
@@ -757,9 +762,9 @@ export const craftAnythingAdapter: ToolAdapter = {
     action(
       'report',
       'Informe',
-      'Escribe un informe del estudio (Markdown) a partir de lo analizado, sin ejecutar el original.',
-      false,
-      'none',
+      'Escribe en Markdown el informe de un estudio ya hecho. El objetivo es la carpeta del proyecto de Craft Anything que deja «Estudiar» (craft-project). No ejecuta el original.',
+      true,
+      'directory',
     ),
   ],
   async detect(ctx) {
@@ -772,19 +777,21 @@ export const craftAnythingAdapter: ToolAdapter = {
   plan(actionId, input) {
     if (actionId !== 'triage' && actionId !== 'report') throw new Error('Acción de Craft Anything desconocida.')
     if (actionId === 'triage' && !input.targetPath) throw new Error('Craft Anything necesita un archivo o una carpeta.')
+    if (actionId === 'report' && !input.targetPath) throw new Error('El informe de Craft Anything necesita la carpeta del proyecto del estudio.')
     const configDir = path.join(input.jobDir, 'craft-config')
     const exe = requiredTool(input, 'craftAnything', 'craft-anything-cli')
+    // Ayuda real de craft-anything-cli 0.6.1: «triage <PATH>» estudia el objetivo y guarda la evidencia en --project;
+    // «report [PATH]» sin PATH informa de lo que guarda el proyecto abierto con --project.
     const args = actionId === 'triage'
-      ? ['--deep', '--format', 'json', '--project', path.join(input.outputDir, 'craft-project'), 'triage', input.targetPath!]
-      : ['--deep', '--format', 'json', '--project', path.join(input.outputDir, 'craft-project'), 'report', '--out', path.join(input.outputDir, 'craft-report.md')]
-    if (args.includes('--allow-run')) throw new Error('La CLI de Craft Anything no puede ejecutarse con --allow-run desde REA Studio.')
-    const ghidraDir = input.bundled?.ghidra ? path.dirname(path.dirname(input.bundled.ghidra)) : undefined
+      ? [...craftGlobalArgs(), '--project', craftProjectDir(input.outputDir), 'triage', input.targetPath!]
+      : [...craftGlobalArgs(), '--project', input.targetPath!, 'report', '--out', path.join(input.outputDir, 'craft-report.md')]
+    assertNoAllowRun(args)
     return {
       kind: 'process',
       executable: exe,
       args,
       cwd: input.jobDir,
-      env: { CRAFT_ANYTHING_CONFIG_DIR: configDir, REA_CRAFT_GHIDRA: ghidraDir ?? '', REA_CRAFT_JAVA: input.bundled?.javaHome ?? '' },
+      env: craftEnv(configDir),
     }
   },
 }
