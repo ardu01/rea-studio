@@ -116,6 +116,9 @@ export function bridgeFor(state: AppState): ReaBridge {
     async projectResetToStart() {
       throw new Error('no usado')
     },
+    async updateReferences() {
+      throw new Error('no usado')
+    },
     async checkCommand(command, args) {
       return { allowed: true, kind: 'normal', network: false, display: [command, ...args].join(' '), command, args, needsApproval: true }
     },

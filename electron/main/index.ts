@@ -7,10 +7,11 @@ import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, agentStartSchema, agentAnswerSchema, referencesUpdateSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
 import { isLocalEndpoint, listOllamaModels, ollamaChat, pullOllamaModel } from '../../src/core/ollama'
 import { AgentSessions } from '../../src/core/project/agent-session'
+import { fichaSummary, searchFicha } from '../../src/core/project/analysis-context'
 import { processGitRunner } from '../../src/core/project/git'
 import { classifyCommand, needsApproval, runProjectCommand } from '../../src/core/project/exec'
 import { ProjectService } from '../../src/core/project/service'
@@ -473,6 +474,12 @@ function registerIpc(): void {
     await projects.undo(stepId)
     return projects.view()
   })
+  handle('project:references-update', async (payload) => {
+    const { references } = referencesUpdateSchema.parse(payload ?? {})
+    if (agents.running) throw new Error('El agente está trabajando. Espera o detenlo antes de actualizar la ficha.')
+    await projects.updateReferences(references)
+    return projects.view()
+  })
   handle('project:reset', async () => {
     await projects.resetToStart()
     return projects.view()
@@ -528,6 +535,7 @@ function registerIpc(): void {
     if (!model.trim()) throw new Error('Elige un modelo en Ajustes › OpenAI compatible.')
     if (commandRuns.size > 0) throw new Error('Hay un comando en marcha. Espera a que termine.')
     const git = projects.git()
+    const ficha = await projects.ficha()
     const runId = agents.start(
       body.goal,
       {
@@ -540,6 +548,8 @@ function registerIpc(): void {
         diff: () => git.diff(),
         run: (check, signal) => runProjectCommand({ root: project.root, check, signal }),
         chat: (messages, tools, signal) => ollamaChat({ endpoint, model, messages, tools, signal }),
+        reference: ficha ? async (query) => searchFicha(ficha, query) : undefined,
+        referenceSummary: ficha ? fichaSummary(ficha) : undefined,
         limits: body.maxSteps ? { maxSteps: body.maxSteps } : undefined,
       },
       model,

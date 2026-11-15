@@ -305,3 +305,9 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6p
 .tool-line.running .dot { background: #ff9f0a; }
 .tool-line > pre { margin-top: 6px; }
 .proposal { margin-top: 12px; padding: 12px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 14px; background: #fff; }
+.ficha h3 { font-size: 15px; margin: 18px 0 6px; }
+.ficha h3:first-child { margin-top: 0; }
+.ficha ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.6; }
+.ficha code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: #f2f2f4; border-radius: 5px; padding: 1px 5px; }
+.ficha-code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; background: #fbfbfd; border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 10px; padding: 10px 12px; overflow: auto; white-space: pre; }
+.pill.path { margin: 0 6px 6px 0; display: inline-block; }

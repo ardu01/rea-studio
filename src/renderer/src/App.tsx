@@ -5,6 +5,7 @@ import { Button } from './ui'
 import { ProjectScreen } from './project'
 import { CommandsPanel } from './project-commands'
 import { AgentPanel } from './project-agent'
+import { ReferencePanel } from './project-reference'
 
 type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'proyecto' | 'conversacion' | 'ajustes'
 
@@ -21,6 +22,7 @@ const NAV: Array<{ id: Route; label: string }> = [
 const PROJECT_TABS = [
   { id: 'agente', label: 'Agente', render: (ctx: Parameters<typeof AgentPanel>[0]['ctx']) => <AgentPanel ctx={ctx} /> },
   { id: 'comandos', label: 'Comandos', render: (ctx: Parameters<typeof CommandsPanel>[0]['ctx']) => <CommandsPanel ctx={ctx} /> },
+  { id: 'referencia', label: 'Referencia', render: (ctx: Parameters<typeof ReferencePanel>[0]['ctx']) => <ReferencePanel ctx={ctx} /> },
 ]
 
 export function App() {

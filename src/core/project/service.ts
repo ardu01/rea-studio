@@ -1,7 +1,9 @@
+import { lstat, readFile } from 'node:fs/promises'
+import { buildFicha, fitFicha, FICHA_JSON, FICHA_MD, fichaMarkdown, parseFicha, type Ficha } from './analysis-context.js'
 import type { GitStep, ProjectFile, ProjectInfo, ProjectTemplateId, ProjectTree, ProjectView } from '../../shared/types.js'
-import { listProjectTree, readProjectFile } from './fs.js'
+import { listProjectTree, readProjectFile, resolveProjectPath, writeProjectFile } from './fs.js'
 import { ProjectGit, type GitRunner } from './git.js'
-import { createProject, openProject } from './project.js'
+import { createProject, loadManifest, openProject, saveManifest } from './project.js'
 import { PROJECT_TEMPLATES } from './templates.js'
 
 export interface ProjectServiceDeps {
@@ -69,6 +71,7 @@ export class ProjectService {
         return new ProjectGit(runner)
       },
     })
+    if (input.references.length && this.deps.workspace()) await this.updateReferences()
     return this.current
   }
 
@@ -112,5 +115,39 @@ export class ProjectService {
 
   async resetToStart(): Promise<void> {
     await this.git().resetToStart()
+  }
+
+  /**
+   * Regenera referencia/ficha.json y ficha.md desde los artefactos del análisis
+   * y guarda el cambio en el git del proyecto. Si se pasan referencias nuevas,
+   * se guardan en el manifiesto.
+   */
+  async updateReferences(references?: string[]): Promise<{ ficha: Ficha; commit: string | null }> {
+    const project = this.requireProject()
+    const workspace = this.deps.workspace()
+    if (!workspace) throw new Error('Elige primero el espacio de trabajo del análisis.')
+    const refs = (references ?? project.references).slice(0, 50)
+    const ficha = fitFicha(await buildFicha(workspace, refs))
+    if (references) {
+      const manifest = await loadManifest(project.root)
+      await saveManifest(project.root, { ...manifest, references: refs })
+      this.current = { ...project, references: refs }
+    }
+    await writeProjectFile(project.root, FICHA_JSON, `${JSON.stringify(ficha)}\n`)
+    await writeProjectFile(project.root, FICHA_MD, fichaMarkdown(ficha))
+    const commit = await this.git().commitAll('actualiza la ficha del análisis')
+    return { ficha, commit }
+  }
+
+  async ficha(): Promise<Ficha | null> {
+    const project = this.requireProject()
+    try {
+      const full = await resolveProjectPath(project.root, FICHA_JSON)
+      const info = await lstat(full)
+      if (!info.isFile() || info.size > 600 * 1024) return null
+      return parseFicha(await readFile(full, 'utf8'))
+    } catch {
+      return null
+    }
   }
 }
