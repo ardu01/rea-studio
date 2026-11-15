@@ -10,6 +10,11 @@ export interface LaunchPlan {
   args: string[]
   shell: false
   viaCmd: boolean
+  /**
+   * Windows: la línea de cmd.exe ya va entrecomillada a mano y Node no debe
+   * volver a escaparla (si no, cmd recibe \"ruta\" y no encuentra el programa).
+   */
+  windowsVerbatimArguments: boolean
 }
 
 export function assertCommandBasename(name: string): void {
@@ -84,11 +89,14 @@ export function planWindowsCmd(
     }
   }
   const line = [quoteCmd(executable), ...args.map(quoteCmd)].join(' ')
+  // Con /s, cmd.exe quita la primera y la última comilla de la línea: por eso
+  // va envuelta en unas comillas externas y se pasa sin que Node la escape.
   return {
     command: cmdExe,
-    args: ['/d', '/s', '/c', line],
+    args: ['/d', '/s', '/c', `"${line}"`],
     shell: false,
     viaCmd: true,
+    windowsVerbatimArguments: true,
   }
 }
 
@@ -114,9 +122,9 @@ export function planLaunch(
     if (!node || node.toLowerCase().endsWith('.cmd') || node.toLowerCase().endsWith('.bat')) {
       throw new Error('Hace falta node.exe en PATH para lanzar un script .js sin pasar por cmd.exe.')
     }
-    return { command: node, args: [exe, ...args], shell: false, viaCmd: false }
+    return { command: node, args: [exe, ...args], shell: false, viaCmd: false, windowsVerbatimArguments: false }
   }
-  return { command: exe, args, shell: false, viaCmd: false }
+  return { command: exe, args, shell: false, viaCmd: false, windowsVerbatimArguments: false }
 }
 
 function resolveCmdExe(pathEnv: string): string {

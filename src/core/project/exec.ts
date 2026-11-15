@@ -255,6 +255,7 @@ export async function runProjectCommand(opts: {
   const result = await runProcess({
     command: launch.command,
     args: launch.args,
+    windowsVerbatimArguments: launch.windowsVerbatimArguments,
     cwd: root,
     timeoutMs: timeoutSec * 1000,
     env: commandEnv(),

@@ -31,6 +31,7 @@ export function processGitRunner(gitExe: string, root: string): GitRunner {
     const result = await runProcess({
       command: launch.command,
       args: launch.args,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
       cwd: root,
       timeoutMs: opts?.timeoutMs ?? 60_000,
       stdin: opts?.stdin,

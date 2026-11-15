@@ -224,6 +224,7 @@ function registerIpc(): void {
         const result = await runProcess({
           command: launch.command,
           args: launch.args,
+          windowsVerbatimArguments: launch.windowsVerbatimArguments,
           cwd: app.getPath('temp'),
           timeoutMs: 15000,
           env: allowedEnv(),

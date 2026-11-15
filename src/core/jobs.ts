@@ -207,6 +207,7 @@ export class JobManager {
       const result = await runProcess({
         command: launch.command,
         args: launch.args,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
         cwd: plan.cwd,
         timeoutMs: record.timeoutMs,
         stdin: plan.stdin,
@@ -245,6 +246,7 @@ export class JobManager {
     const result = await runProcess({
       command: launch.command,
       args: launch.args,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
       cwd: this.deps.workspace(),
       timeoutMs: 15000,
       env: allowedEnv(),

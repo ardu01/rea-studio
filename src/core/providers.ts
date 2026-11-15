@@ -271,6 +271,7 @@ export async function checkProvider(opts: {
       const result = await runProcess({
         command: launch.command,
         args: launch.args,
+        windowsVerbatimArguments: launch.windowsVerbatimArguments,
         cwd: process.cwd(),
         timeoutMs: 20000,
         env: allowedEnv(),
@@ -488,6 +489,7 @@ async function runCli(opts: {
   const result = await runProcess({
     command: launch.command,
     args: launch.args,
+    windowsVerbatimArguments: launch.windowsVerbatimArguments,
     cwd: opts.cwd,
     timeoutMs: opts.timeoutMs,
     stdin,

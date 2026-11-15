@@ -3,6 +3,8 @@ import { spawn, type ChildProcess } from 'node:child_process'
 export interface ProcessRequest {
   command: string
   args: string[]
+  /** Solo Windows: pasa los argumentos tal cual (necesario para cmd.exe /s /c "…"). */
+  windowsVerbatimArguments?: boolean
   cwd: string
   timeoutMs: number
   stdin?: string
@@ -128,6 +130,7 @@ export function runProcess(req: ProcessRequest): Promise<ProcessResult> {
         env: req.env,
         shell: false,
         windowsHide: true,
+        windowsVerbatimArguments: req.windowsVerbatimArguments === true,
         detached: process.platform !== 'win32',
         stdio: ['pipe', 'pipe', 'pipe'],
       })
