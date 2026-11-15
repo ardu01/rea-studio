@@ -229,6 +229,16 @@ El sistema incorpora conectores para proveedores de modelos de lenguaje y agente
 
 Permite preparar conversaciones con información obtenida durante los análisis.
 
+### Modo Proyecto
+
+Crea un proyecto propio (Node.js, Python, .NET o C/C++ con CMake) en una carpeta aparte, con git local, y trabaja en él con un modelo de Ollama en localhost:
+
+- cada cambio se revisa como diff y se puede deshacer;
+- los comandos se lanzan sin shell y desde una lista permitida;
+- instalar paquetes siempre pide permiso.
+
+Detalles en [docs/MODO-PROYECTO.md](docs/MODO-PROYECTO.md).
+
 ### Gestión de trabajos
 
 Los trabajos admiten:

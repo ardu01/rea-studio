@@ -183,3 +183,12 @@ describe('ejecución real con node (sin shell)', () => {
     expect(resolveExecutable('py', dir)).toBe(exe)
   })
 })
+
+describe('git de solo lectura', () => {
+  it('no deja escribir archivos ni lanzar programas externos desde git', () => {
+    expect(classifyCommand('git', ['diff', '--stat'], root).allowed).toBe(true)
+    for (const args of [['diff', '--output=x.txt'], ['log', '--output', 'x.txt'], ['diff', '--ext-diff'], ['log', '--textconv'], ['status', '--git-dir=../otro']]) {
+      expect(classifyCommand('git', args, root).allowed, args.join(' ')).toBe(false)
+    }
+  })
+})

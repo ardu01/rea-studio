@@ -105,7 +105,11 @@ export const COMMAND_RULES: Record<string, Rule> = {
   },
   git: (args) => {
     const sub = firstWord(args)
-    if (sub && ['status', 'diff', 'log'].includes(sub)) return normal
+    if (sub && ['status', 'diff', 'log'].includes(sub)) {
+      const risky = args.find((arg) => /^--(output|ext-diff|textconv|exec-path|git-dir|work-tree)(=|$)/.test(arg))
+      if (risky) return `git ${sub} no admite ${risky.split('=')[0]} aquí.`
+      return normal
+    }
     return 'De git solo se permiten status, diff y log. Los commits los hace REA Studio.'
   },
 }
