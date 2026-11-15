@@ -46,7 +46,7 @@ describe('diff unificado', () => {
     await writeFile(path.join(dir, 'f.txt'), before)
     execFileSync(GIT!, ['init', '-q'], { cwd: dir })
     await writeFile(path.join(dir, 'p.diff'), unifiedDiff(before, after, 'f.txt'))
-    execFileSync(GIT!, ['apply', 'p.diff'], { cwd: dir })
+    execFileSync(GIT!, ['-c', 'core.autocrlf=false', 'apply', 'p.diff'], { cwd: dir })
     expect(await readFile(path.join(dir, 'f.txt'), 'utf8')).toBe(after)
   })
 })
