@@ -80,5 +80,41 @@ export function bridgeFor(state: AppState): ReaBridge {
     onOllamaEvent() {
       return () => undefined
     },
+    async projectState() {
+      return { project: null, gitAvailable: true, templates: [] }
+    },
+    async chooseProjectParent() {
+      return null
+    },
+    async chooseProjectFolder() {
+      return null
+    },
+    async createProject() {
+      throw new Error('no usado')
+    },
+    async openProject() {
+      throw new Error('no usado')
+    },
+    async closeProject() {
+      return { project: null, gitAvailable: true, templates: [] }
+    },
+    async projectTree() {
+      return { entries: [], truncated: false }
+    },
+    async projectRead() {
+      throw new Error('no usado')
+    },
+    async projectDiff() {
+      return ''
+    },
+    async projectHistory() {
+      return []
+    },
+    async projectUndo() {
+      throw new Error('no usado')
+    },
+    async projectResetToStart() {
+      throw new Error('no usado')
+    },
   }
 }

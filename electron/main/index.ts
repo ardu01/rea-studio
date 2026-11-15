@@ -7,9 +7,11 @@ import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, ollamaPullSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
 import { listOllamaModels, pullOllamaModel } from '../../src/core/ollama'
+import { processGitRunner } from '../../src/core/project/git'
+import { ProjectService } from '../../src/core/project/service'
 import { assertInside } from '../../src/core/paths'
 import { assertProviderId, checkProvider, publicProviders, runModel } from '../../src/core/providers'
 import { scrubForLog } from '../../src/core/redact'
@@ -28,6 +30,16 @@ let secrets: SecretStore
 let jobs: JobManager
 const chats = new Map<string, AbortController>()
 const pulls = new Map<string, AbortController>()
+let projects: ProjectService
+
+function gitExecutable(): string | null {
+  return findOnPath('git', process.env.PATH ?? '', process.platform)
+}
+
+async function rememberProject(root: string | null): Promise<void> {
+  settings = normalizeSettings({ ...settings, projectPath: root })
+  await saveSettings(settingsFile(), settings)
+}
 let shotDir: string | null = null
 
 const gotLock = app.requestSingleInstanceLock()
@@ -412,6 +424,53 @@ function registerIpc(): void {
     const { id } = idSchema.parse(payload)
     pulls.get(id)?.abort()
   })
+  handle('project:state', async () => projects.view())
+  handle('project:choose-parent', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, { title: 'Carpeta donde crear el proyecto', properties: ['openDirectory', 'createDirectory'] })
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+  handle('project:choose-folder', async () => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, { title: 'Abrir proyecto de REA Studio', properties: ['openDirectory'] })
+    return result.canceled ? null : (result.filePaths[0] ?? null)
+  })
+  handle('project:create', async (payload) => {
+    const body = projectCreateSchema.parse(payload)
+    const info = await projects.create(body)
+    await rememberProject(info.root)
+    return projects.view()
+  })
+  handle('project:open', async (payload) => {
+    const { path: dir } = pathSchema.parse(payload)
+    const info = await projects.open(dir)
+    await rememberProject(info.root)
+    return projects.view()
+  })
+  handle('project:close', async () => {
+    projects.close()
+    await rememberProject(null)
+    return projects.view()
+  })
+  handle('project:tree', async () => projects.tree())
+  handle('project:read', async (payload) => {
+    const { relativePath } = relSchema.parse(payload)
+    return projects.read(relativePath)
+  })
+  handle('project:diff', async (payload) => {
+    const { stepId } = projectDiffSchema.parse(payload ?? {})
+    return projects.diff(stepId)
+  })
+  handle('project:history', async () => projects.history())
+  handle('project:undo', async (payload) => {
+    const { stepId } = projectStepSchema.parse(payload)
+    await projects.undo(stepId)
+    return projects.view()
+  })
+  handle('project:reset', async () => {
+    await projects.resetToStart()
+    return projects.view()
+  })
   handle('app:open-docs', async (payload) => {
     const { url } = urlSchema.parse(payload)
     if (!ALLOWED_DOCS.has(url)) throw new Error('Enlace no permitido.')
@@ -601,6 +660,20 @@ app.whenReady().then(async () => {
     },
     emit: (event) => mainWindow?.webContents.send('jobs:event', event),
   })
+  projects = new ProjectService({
+    gitFor: (root) => {
+      const git = gitExecutable()
+      return git ? processGitRunner(git, root) : null
+    },
+    workspace: () => settings.workspacePath,
+  })
+  if (settings.projectPath) {
+    try {
+      await projects.open(settings.projectPath)
+    } catch {
+      settings = normalizeSettings({ ...settings, projectPath: null })
+    }
+  }
   shotDir = process.env.REA_STUDIO_SCREENSHOT_DIR ?? null
   if (shotDir) await mkdir(shotDir, { recursive: true })
   installCsp()

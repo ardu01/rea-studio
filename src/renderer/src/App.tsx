@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react'
 import type { AppState, Detection, ReaBridge } from '../../shared/types'
 import { ArtifactsScreen, ChatScreen, HomeScreen, JobsScreen, Onboarding, SettingsScreen, ToolsScreen } from './screens'
 import { Button } from './ui'
+import { ProjectScreen } from './project'
 
-type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'conversacion' | 'ajustes'
+type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'proyecto' | 'conversacion' | 'ajustes'
 
 const NAV: Array<{ id: Route; label: string }> = [
   { id: 'inicio', label: 'Inicio' },
   { id: 'herramientas', label: 'Herramientas' },
   { id: 'trabajos', label: 'Trabajos' },
   { id: 'artefactos', label: 'Artefactos' },
+  { id: 'proyecto', label: 'Proyecto' },
   { id: 'conversacion', label: 'Conversación' },
   { id: 'ajustes', label: 'Ajustes' },
 ]
@@ -115,6 +117,7 @@ export function App() {
         ) : null}
         {route === 'trabajos' ? <JobsScreen bridge={bridge} /> : null}
         {route === 'artefactos' ? <ArtifactsScreen bridge={bridge} /> : null}
+        {route === 'proyecto' ? <ProjectScreen bridge={bridge} /> : null}
         {route === 'conversacion' ? <ChatScreen bridge={bridge} state={state} e2e={state.e2e} /> : null}
         {route === 'ajustes' ? <SettingsScreen bridge={bridge} state={state} onState={setState} /> : null}
       </main>
