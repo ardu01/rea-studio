@@ -81,7 +81,7 @@ export function bridgeFor(state: AppState): ReaBridge {
       return () => undefined
     },
     async projectState() {
-      return { project: null, gitAvailable: true, templates: [] }
+      return { project: null, gitAvailable: true, autonomous: false, templates: [] }
     },
     async chooseProjectParent() {
       return null
@@ -96,7 +96,7 @@ export function bridgeFor(state: AppState): ReaBridge {
       throw new Error('no usado')
     },
     async closeProject() {
-      return { project: null, gitAvailable: true, templates: [] }
+      return { project: null, gitAvailable: true, autonomous: false, templates: [] }
     },
     async projectTree() {
       return { entries: [], truncated: false }
@@ -115,6 +115,21 @@ export function bridgeFor(state: AppState): ReaBridge {
     },
     async projectResetToStart() {
       throw new Error('no usado')
+    },
+    async checkCommand(command, args) {
+      return { allowed: true, kind: 'normal', network: false, display: [command, ...args].join(' '), command, args, needsApproval: true }
+    },
+    async runCommand() {
+      return { runId: 'cmd-1' }
+    },
+    async cancelCommand() {
+      return undefined
+    },
+    async setAutonomous() {
+      return { project: null, gitAvailable: true, autonomous: false, templates: [] }
+    },
+    onProjectEvent() {
+      return () => undefined
     },
   }
 }

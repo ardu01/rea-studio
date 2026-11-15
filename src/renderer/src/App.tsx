@@ -3,6 +3,7 @@ import type { AppState, Detection, ReaBridge } from '../../shared/types'
 import { ArtifactsScreen, ChatScreen, HomeScreen, JobsScreen, Onboarding, SettingsScreen, ToolsScreen } from './screens'
 import { Button } from './ui'
 import { ProjectScreen } from './project'
+import { CommandsPanel } from './project-commands'
 
 type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'proyecto' | 'conversacion' | 'ajustes'
 
@@ -15,6 +16,8 @@ const NAV: Array<{ id: Route; label: string }> = [
   { id: 'conversacion', label: 'Conversación' },
   { id: 'ajustes', label: 'Ajustes' },
 ]
+
+const PROJECT_TABS = [{ id: 'comandos', label: 'Comandos', render: (ctx: Parameters<typeof CommandsPanel>[0]['ctx']) => <CommandsPanel ctx={ctx} /> }]
 
 export function App() {
   const bridge = window.reaStudio
@@ -117,7 +120,7 @@ export function App() {
         ) : null}
         {route === 'trabajos' ? <JobsScreen bridge={bridge} /> : null}
         {route === 'artefactos' ? <ArtifactsScreen bridge={bridge} /> : null}
-        {route === 'proyecto' ? <ProjectScreen bridge={bridge} /> : null}
+        {route === 'proyecto' ? <ProjectScreen bridge={bridge} extraTabs={PROJECT_TABS} /> : null}
         {route === 'conversacion' ? <ChatScreen bridge={bridge} state={state} e2e={state.e2e} /> : null}
         {route === 'ajustes' ? <SettingsScreen bridge={bridge} state={state} onState={setState} /> : null}
       </main>

@@ -40,6 +40,11 @@ const bridge: ReaBridge = {
   projectHistory: () => ipcRenderer.invoke('project:history'),
   projectUndo: (stepId) => ipcRenderer.invoke('project:undo', { stepId }),
   projectResetToStart: () => ipcRenderer.invoke('project:reset'),
+  checkCommand: (command, args) => ipcRenderer.invoke('project:check-command', { command, args }),
+  runCommand: (input) => ipcRenderer.invoke('project:run-command', input),
+  cancelCommand: (runId) => ipcRenderer.invoke('project:cancel-command', { id: runId }),
+  setAutonomous: (enabled) => ipcRenderer.invoke('project:set-autonomous', { enabled }),
+  onProjectEvent: (cb) => subscribe('project:event', cb),
   shot: (name) => ipcRenderer.invoke('e2e:shot', { name }),
   shotDone: () => ipcRenderer.invoke('e2e:done'),
 }

@@ -287,3 +287,6 @@ label.lbl { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6p
 .pick-list { display: flex; flex-direction: column; gap: 4px; max-height: 220px; overflow: auto; margin-top: 4px; }
 .pick { display: flex; gap: 8px; align-items: center; padding: 6px 4px; border-top: 1px solid rgba(0, 0, 0, 0.05); font-size: 13px; }
 .step { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 12px; border: 1px solid rgba(0, 0, 0, 0.06); border-radius: 12px; background: #fbfbfd; }
+.auto-toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; }
+.modal.confirm { width: min(600px, 92vw); }
+.kv { display: grid; grid-template-columns: 90px 1fr; gap: 6px 12px; font-size: 13px; margin-top: 12px; }

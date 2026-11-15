@@ -7,10 +7,11 @@ import { createRegistry, listOutputFiles, readTextPreview } from '../../src/core
 import { assertOptIn, buildDisclosure, contextBody } from '../../src/core/cloud'
 import { findOnPath, planLaunch } from '../../src/core/command'
 import { allowedEnv, runProcess } from '../../src/core/process'
-import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
+import { cloudSchema, idSchema, ollamaPullSchema, projectCreateSchema, projectDiffSchema, projectStepSchema, commandCheckSchema, commandRunSchema, autonomousSchema, jobStartSchema, pathSchema, relSchema, secretSchema, settingsPatchSchema, urlSchema } from '../../src/core/ipc-schemas'
 import { JobManager } from '../../src/core/jobs'
 import { listOllamaModels, pullOllamaModel } from '../../src/core/ollama'
 import { processGitRunner } from '../../src/core/project/git'
+import { classifyCommand, needsApproval, runProjectCommand } from '../../src/core/project/exec'
 import { ProjectService } from '../../src/core/project/service'
 import { assertInside } from '../../src/core/paths'
 import { assertProviderId, checkProvider, publicProviders, runModel } from '../../src/core/providers'
@@ -31,6 +32,7 @@ let jobs: JobManager
 const chats = new Map<string, AbortController>()
 const pulls = new Map<string, AbortController>()
 let projects: ProjectService
+const commandRuns = new Map<string, AbortController>()
 
 function gitExecutable(): string | null {
   return findOnPath('git', process.env.PATH ?? '', process.platform)
@@ -448,6 +450,7 @@ function registerIpc(): void {
     return projects.view()
   })
   handle('project:close', async () => {
+    for (const controller of commandRuns.values()) controller.abort()
     projects.close()
     await rememberProject(null)
     return projects.view()
@@ -469,6 +472,48 @@ function registerIpc(): void {
   })
   handle('project:reset', async () => {
     await projects.resetToStart()
+    return projects.view()
+  })
+  handle('project:check-command', async (payload) => {
+    const { command, args } = commandCheckSchema.parse(payload)
+    const check = classifyCommand(command, args, projects.requireProject().root)
+    return { ...check, needsApproval: needsApproval(check, projects.autonomous) }
+  })
+  handle('project:run-command', async (payload) => {
+    const body = commandRunSchema.parse(payload)
+    const project = projects.requireProject()
+    const check = classifyCommand(body.command, body.args, project.root)
+    if (!check.allowed) throw new Error(check.reason ?? 'Comando no permitido.')
+    if (needsApproval(check, projects.autonomous) && !body.confirmed) throw new Error('Este comando necesita confirmación.')
+    if (commandRuns.size > 0) throw new Error('Ya hay un comando en marcha. Espera o detenlo.')
+    const runId = `cmd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+    const controller = new AbortController()
+    commandRuns.set(runId, controller)
+    void (async () => {
+      try {
+        const result = await runProjectCommand({
+          root: project.root,
+          check,
+          timeoutSec: body.timeoutSec,
+          signal: controller.signal,
+          onChunk: (stream, text) => mainWindow?.webContents.send('project:event', { kind: 'chunk', runId, stream, text }),
+        })
+        mainWindow?.webContents.send('project:event', { kind: 'done', runId, result })
+      } catch (error) {
+        mainWindow?.webContents.send('project:event', { kind: 'done', runId, error: error instanceof Error ? error.message : 'Error' })
+      } finally {
+        commandRuns.delete(runId)
+      }
+    })()
+    return { runId }
+  })
+  handle('project:cancel-command', async (payload) => {
+    const { id } = idSchema.parse(payload)
+    commandRuns.get(id)?.abort()
+  })
+  handle('project:set-autonomous', async (payload) => {
+    const { enabled } = autonomousSchema.parse(payload)
+    projects.setAutonomous(enabled)
     return projects.view()
   })
   handle('app:open-docs', async (payload) => {
