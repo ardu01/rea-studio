@@ -3,8 +3,11 @@ import type { ProgramDetection } from '../../shared/types.js'
 export interface AnalysisStep {
   adapterId: string
   actionId: string
-  /** 'file' usa fileTarget; 'folder' usa folderTarget o sourcePath. */
-  target: 'file' | 'folder' | 'source'
+  /**
+   * 'file' usa fileTarget; 'folder' usa folderTarget o sourcePath.
+   * 'craft-project' usa la carpeta del proyecto que ha dejado el estudio de Craft Anything en este mismo análisis.
+   */
+  target: 'file' | 'folder' | 'source' | 'craft-project'
   timeoutMs: number
   optional: boolean
   label: string
@@ -49,7 +52,7 @@ export function planAnalyses(detection: ProgramDetection): AnalysisStep[] {
     steps.push({
       adapterId: 'craft-anything',
       actionId: 'report',
-      target: 'source',
+      target: 'craft-project',
       timeoutMs: T.craft,
       optional: true,
       label: 'Craft Anything · informe',
@@ -179,7 +182,12 @@ export function appendModuleSteps(steps: AnalysisStep[], detection: ProgramDetec
   }
 }
 
-export function resolveAnalysisTarget(step: AnalysisStep, detection: ProgramDetection): string | undefined {
+export function resolveAnalysisTarget(
+  step: AnalysisStep,
+  detection: ProgramDetection,
+  context: { craftProject?: string } = {},
+): string | undefined {
+  if (step.target === 'craft-project') return context.craftProject
   if (step.targetPath) return step.targetPath
   if (step.target === 'folder') return detection.folderTarget ?? detection.sourcePath
   if (step.target === 'source') return detection.sourcePath

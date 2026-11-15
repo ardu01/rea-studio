@@ -13,7 +13,7 @@ import type {
 import { redactUserPaths } from '../project/analysis-context.js'
 import { detectProgram, defaultProjectsDir } from './detect.js'
 import { simplifyCopyError } from './errors.js'
-import { CHECK_GOOD_ENOUGH, CHECK_MAX_ROUNDS, formatAlike, parseCraftCheck, type CraftCheckResult } from './craft.js'
+import { CHECK_GOOD_ENOUGH, CHECK_MAX_ROUNDS, craftProjectDir, formatAlike, parseCraftCheck, type CraftCheckResult } from './craft.js'
 import { planAnalyses, resolveAnalysisTarget } from './plan.js'
 
 const STEPS: CopyStepId[] = ['analizando', 'creando', 'copiando', 'comprobando', 'mejorando', 'listo']
@@ -104,7 +104,8 @@ export class CopyFlow {
       check: null,
       packageRequest: null,
     }
-    this.log(`Detectado: ${detection.kindLabel} (${detection.templateLabel})`)
+    this.log(`Detectado: ${detection.kindLabel}.`)
+    if (detection.templateLabel) this.log(`La copia se hará como proyecto ${detection.templateLabel}.${detection.kind === 'native' ? ' No se sabe en qué lenguaje se escribió el original.' : ''}`)
     this.push()
     this.running = this.execute().finally(() => {
       this.running = null
@@ -239,6 +240,7 @@ export class CopyFlow {
     const references: string[] = []
     let requiredFailed = false
     let requiredError = ''
+    let craftProject: string | undefined
     for (const step of plan) {
       this.thrownIfAborted()
       if (step.skipReason) {
@@ -246,9 +248,11 @@ export class CopyFlow {
         this.analysisPending.push(step.skipReason)
         continue
       }
-      const target = resolveAnalysisTarget(step, detection)
-      if (!target && (step.target === 'file' || step.target === 'folder' || step.target === 'source')) {
-        const note = `${step.label}: sin archivo, se omite.`
+      const target = resolveAnalysisTarget(step, detection, { craftProject })
+      if (!target) {
+        const note = step.target === 'craft-project'
+          ? `${step.label}: no hay estudio de Craft Anything del que informar, se omite.`
+          : `${step.label}: sin archivo, se omite.`
         this.log(note)
         this.analysisPending.push(note)
         if (!step.optional) {
@@ -268,10 +272,29 @@ export class CopyFlow {
         continue
       }
       this.log(`${step.label}…`)
-      const job = await this.runOne({ adapterId: step.adapterId, actionId: step.actionId, targetPath: target, timeoutMs: step.timeoutMs })
+      let job: JobRecord
+      try {
+        job = await this.runOne({ adapterId: step.adapterId, actionId: step.actionId, targetPath: target, timeoutMs: step.timeoutMs })
+      } catch (error) {
+        // Un paso que ni siquiera arranca (argumentos rechazados, herramienta rota) no debe parar el análisis.
+        this.thrownIfAborted()
+        const message = error instanceof Error ? error.message : 'Error desconocido.'
+        const note = `${step.label}: no se ha podido lanzar (${redactUserPaths(message)}).`
+        this.log(note)
+        this.analysisPending.push(note)
+        if (!step.optional) {
+          requiredFailed = true
+          requiredError = message
+        }
+        continue
+      }
       if (job.status === 'cancelled') throw new Error('Cancelado.')
       if (job.status === 'succeeded') {
         references.push(...job.artifacts)
+        if (step.adapterId === 'craft-anything' && step.actionId === 'triage') {
+          const workspace = this.deps.workspace()
+          if (workspace) craftProject = craftProjectDir(path.join(workspace, 'jobs', job.id, 'output'))
+        }
         this.log(`${step.label}: terminado.`)
       } else {
         const detail = job.error ? ` (${redactUserPaths(job.error)})` : ''
@@ -366,7 +389,11 @@ export class CopyFlow {
       if (this.deps.runCraftCheck && projectRoot) {
         try {
           last = await this.deps.runCraftCheck({ originalPath: original, copyRoot: projectRoot, allowRun })
-          this.log(last.usedCraft ? 'Craft Anything ha comparado la copia con el original.' : 'Craft Anything no ha podido comparar; sigo con la ficha y las pruebas.')
+          this.log(
+            last.usedCraft
+              ? 'Craft Anything ha comparado la copia con el original.'
+              : `Craft Anything no ha comparado${last.reason ? ` (${redactUserPaths(last.reason)})` : ''}; sigo con la ficha y las pruebas.`,
+          )
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Error desconocido.'
           this.log(`Craft Anything no ha podido comprobar (${message}). Uso nuestras herramientas como alternativa.`)
