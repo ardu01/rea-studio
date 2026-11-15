@@ -68,3 +68,13 @@ export const idSchema = z.object({ id: z.string().min(1).max(80) }).strict()
 export const pathSchema = z.object({ path: z.string().min(1).max(4096) }).strict()
 export const relSchema = z.object({ relativePath: z.string().min(1).max(1024) }).strict()
 export const urlSchema = z.object({ url: z.string().url().max(300) }).strict()
+
+export const ollamaPullSchema = z
+  .object({
+    model: z
+      .string()
+      .min(1)
+      .max(200)
+      .regex(/^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$/),
+  })
+  .strict()

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { AppState, ArtifactEntry, ChatLine, Detection, DisclosureView, JobRecord, ProviderCheck, ReaBridge } from '../../shared/types'
 import { Area, Badge, Button, CheckRow, ConfirmDialog, Field, Label } from './ui'
+import { OllamaDownloads, OllamaModelField, useOllama } from './ollama'
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : 'No se pudo completar la acción.'
@@ -616,7 +617,7 @@ export function ChatScreen({ bridge, state, e2e = false }: { bridge: ReaBridge; 
     }
   }
 
-  const configured = provider?.configured ? (provider.transport === 'cli' ? 'CLI presente' : 'Clave guardada') : 'No configurado'
+  const configured = provider?.configured ? (provider.transport === 'cli' ? 'CLI presente' : provider.keyless ? 'Servidor local' : 'Clave guardada') : 'No configurado'
 
   return (
     <div className="page">
@@ -766,11 +767,13 @@ export function SettingsScreen({
         {apiProviders.map((item) => (
           <ProviderCard
             key={item.id}
+            bridge={bridge}
             itemId={item.id}
             label={item.label}
             model={item.model}
             endpoint={item.endpoint}
             configured={item.configured}
+            keyless={item.keyless === true}
             note={item.note}
             check={checks[item.id]}
             secret={secretDraft[item.id] ?? ''}
@@ -833,11 +836,13 @@ export function SettingsScreen({
 }
 
 function ProviderCard(props: {
+  bridge: ReaBridge
   itemId: string
   label: string
   model: string
   endpoint?: string
   configured: boolean
+  keyless: boolean
   note: string
   check?: ProviderCheck
   secret: string
@@ -854,17 +859,27 @@ function ProviderCard(props: {
     setModel(props.model)
     setEndpoint(props.endpoint ?? '')
   }, [props.model, props.endpoint])
+  const ollama = useOllama({
+    bridge: props.bridge,
+    active: props.itemId === 'compatible',
+    savedEndpoint: props.endpoint ?? '',
+    onPulled: setModel,
+  })
   return (
     <article className="card">
       <div className="row" style={{ justifyContent: 'space-between' }}>
         <h2>{props.label}</h2>
-        <Badge tone={props.configured ? 'warn' : ''}>{props.configured ? 'Clave guardada' : 'No configurado'}</Badge>
+        <Badge tone={props.configured ? 'warn' : ''}>{props.keyless ? 'Servidor local' : props.configured ? 'Clave guardada' : 'No configurado'}</Badge>
       </div>
       <p className="small muted">{props.note}</p>
       <div className="grid" style={{ marginTop: 12 }}>
-        <div>
+        <div style={props.itemId === 'compatible' ? { gridColumn: 'span 2' } : undefined}>
           <Label>Modelo</Label>
-          <Field aria-label={`Modelo de ${props.label}`} value={model} onChange={(event) => setModel(event.target.value)} />
+          {props.itemId === 'compatible' ? (
+            <OllamaModelField ollama={ollama} label={props.label} model={model} onModel={setModel} />
+          ) : (
+            <Field aria-label={`Modelo de ${props.label}`} value={model} onChange={(event) => setModel(event.target.value)} />
+          )}
         </div>
         <div>
           <Label>Endpoint</Label>
@@ -874,6 +889,7 @@ function ProviderCard(props: {
       <div className="row" style={{ marginTop: 10 }}>
         <Button type="button" variant="secondary" onClick={() => props.onModel(model, endpoint)}>Guardar modelo</Button>
       </div>
+      {props.itemId === 'compatible' ? <OllamaDownloads ollama={ollama} /> : null}
       <div style={{ marginTop: 12 }}>
         <Label>Clave</Label>
         <div className="row">
@@ -882,7 +898,7 @@ function ProviderCard(props: {
             type="password"
             autoComplete="off"
             value={props.secret}
-            placeholder={props.configured ? 'Hay una clave guardada' : 'No configurado'}
+            placeholder={props.keyless ? 'Opcional en un servidor local' : props.configured ? 'Hay una clave guardada' : 'No configurado'}
             disabled={!props.encryption}
             onChange={(event) => props.onSecret(event.target.value)}
           />
