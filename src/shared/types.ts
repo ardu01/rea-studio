@@ -70,6 +70,7 @@ export interface PublicSettings {
   onboardingComplete: boolean
   workspacePath: string | null
   recentWorkspaces: string[]
+  projectPath: string | null
   tools: {
     rea: string
     ghidra: string
@@ -208,6 +209,18 @@ export interface ReaBridge {
   pullOllamaModel(model: string): Promise<{ requestId: string }>
   cancelOllamaPull(requestId: string): Promise<void>
   onOllamaEvent(cb: (event: OllamaEvent) => void): () => void
+  projectState(): Promise<ProjectView>
+  chooseProjectParent(): Promise<string | null>
+  chooseProjectFolder(): Promise<string | null>
+  createProject(input: { parentDir: string; name: string; template: ProjectTemplateId; references: string[] }): Promise<ProjectView>
+  openProject(path: string): Promise<ProjectView>
+  closeProject(): Promise<ProjectView>
+  projectTree(): Promise<ProjectTree>
+  projectRead(relativePath: string): Promise<ProjectFile>
+  projectDiff(stepId?: string): Promise<string>
+  projectHistory(): Promise<GitStep[]>
+  projectUndo(stepId: string): Promise<ProjectView>
+  projectResetToStart(): Promise<ProjectView>
   shot?(name: string): Promise<void>
   shotDone?(): Promise<void>
 }
@@ -258,3 +271,57 @@ export interface OllamaProgress {
 export type OllamaEvent =
   | ({ kind: 'progress'; requestId: string; model: string } & OllamaProgress)
   | { kind: 'done'; requestId: string; model: string; status: 'succeeded' | 'failed' | 'cancelled'; error?: string }
+
+export type ProjectTemplateId = 'node' | 'python' | 'dotnet' | 'cmake'
+
+export interface ProjectCommand {
+  label: string
+  command: string
+  args: string[]
+}
+
+export interface ProjectInfo {
+  root: string
+  name: string
+  template: ProjectTemplateId
+  templateLabel: string
+  createdAt: string
+  references: string[]
+  commands: ProjectCommand[]
+}
+
+export interface ProjectView {
+  project: ProjectInfo | null
+  gitAvailable: boolean
+  templates: Array<{ id: ProjectTemplateId; label: string; summary: string }>
+}
+
+export interface TreeEntry {
+  path: string
+  kind: 'file' | 'dir' | 'link'
+  depth: number
+  bytes?: number
+  skipped?: boolean
+  status?: string
+}
+
+export interface ProjectTree {
+  entries: TreeEntry[]
+  truncated: boolean
+}
+
+export interface ProjectFile {
+  relativePath: string
+  text: string
+  bytes: number
+  truncated: boolean
+  binary: boolean
+}
+
+export interface GitStep {
+  id: string
+  message: string
+  at: string
+  author: string
+  byRea: boolean
+}

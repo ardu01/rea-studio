@@ -10,6 +10,7 @@ export function defaultSettings(): PublicSettings {
     onboardingComplete: false,
     workspacePath: null,
     recentWorkspaces: [],
+    projectPath: null,
     tools: {
       rea: '',
       ghidra: '',
@@ -102,11 +103,16 @@ export function normalizeSettings(input: unknown): PublicSettings {
   if (typeof raw.workspacePath === 'string' && raw.workspacePath.trim()) {
     workspacePath = assertAbsoluteUserPath(raw.workspacePath)
   }
+  let projectPath: string | null = null
+  if (typeof raw.projectPath === 'string' && raw.projectPath.trim()) {
+    projectPath = assertAbsoluteUserPath(raw.projectPath)
+  }
   return {
     acceptedUseNotice: raw.acceptedUseNotice === true,
     onboardingComplete: raw.onboardingComplete === true && raw.acceptedUseNotice === true && !!workspacePath,
     workspacePath,
     recentWorkspaces: recent,
+    projectPath,
     tools,
     providers,
   }

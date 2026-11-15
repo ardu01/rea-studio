@@ -78,3 +78,15 @@ export const ollamaPullSchema = z
       .regex(/^[A-Za-z0-9][A-Za-z0-9._:/@+-]{0,199}$/),
   })
   .strict()
+
+export const projectCreateSchema = z
+  .object({
+    parentDir: z.string().min(1).max(4096),
+    name: z.string().min(1).max(60),
+    template: z.enum(['node', 'python', 'dotnet', 'cmake']),
+    references: z.array(z.string().min(1).max(1024)).max(50),
+  })
+  .strict()
+
+export const projectStepSchema = z.object({ stepId: z.string().regex(/^[0-9a-f]{7,64}$/) }).strict()
+export const projectDiffSchema = z.object({ stepId: z.string().regex(/^[0-9a-f]{7,64}$/).optional() }).strict()
