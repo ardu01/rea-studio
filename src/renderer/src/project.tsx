@@ -204,6 +204,7 @@ export interface ProjectContext {
   view: ProjectView
   refresh: () => Promise<void>
   select: (path: string) => void
+  update: (view: ProjectView) => void
 }
 
 function OpenProject({
@@ -263,7 +264,7 @@ function OpenProject({
     }
   }
 
-  const ctx = useMemo<ProjectContext>(() => ({ bridge, view, refresh, select }), [bridge, view, refresh, select])
+  const ctx = useMemo<ProjectContext>(() => ({ bridge, view, refresh, select, update: onView }), [bridge, view, refresh, select, onView])
   const tabs = [...extraTabs.map((item) => ({ id: item.id, label: item.label })), { id: 'archivo', label: 'Archivo' }, { id: 'cambios', label: 'Cambios' }, { id: 'historial', label: 'Historial' }]
   const changes = tree?.entries.filter((entry) => entry.status).length ?? 0
 

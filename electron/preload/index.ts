@@ -40,6 +40,7 @@ const bridge: ReaBridge = {
   projectHistory: () => ipcRenderer.invoke('project:history'),
   projectUndo: (stepId) => ipcRenderer.invoke('project:undo', { stepId }),
   projectResetToStart: () => ipcRenderer.invoke('project:reset'),
+  updateReferences: (references) => ipcRenderer.invoke('project:references-update', references ? { references } : {}),
   checkCommand: (command, args) => ipcRenderer.invoke('project:check-command', { command, args }),
   runCommand: (input) => ipcRenderer.invoke('project:run-command', input),
   cancelCommand: (runId) => ipcRenderer.invoke('project:cancel-command', { id: runId }),

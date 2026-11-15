@@ -242,6 +242,7 @@ export function ghidraArgv(input: {
   target: string
   scriptDir: string
   summaryPath: string
+  typesPath?: string
   logPath: string
   timeoutSec: number
 }): string[] {
@@ -255,6 +256,7 @@ export function ghidraArgv(input: {
     '-postScript',
     'ExportSummary.java',
     input.summaryPath,
+    ...(input.typesPath ? ['-postScript', 'ExportTypes.java', input.typesPath] : []),
     '-analysisTimeoutPerFile',
     String(input.timeoutSec),
     '-deleteProject',
@@ -267,7 +269,7 @@ export const ghidraAdapter: ToolAdapter = {
   id: 'ghidra',
   name: 'Ghidra headless',
   maturity: 'implemented',
-  verification: 'analyzeHeadless con ExportSummary.java propio. Las pruebas usan un lanzador sustituto.',
+  verification: 'analyzeHeadless con ExportSummary.java y ExportTypes.java propios. Las pruebas usan un lanzador sustituto.',
   docsUrl: DOC_LINKS.ghidraHeadless,
   installHint: 'Descomprime la release oficial y elige la carpeta de Ghidra. Hace falta JDK 21 para Ghidra 11.',
   actions: [
@@ -316,6 +318,7 @@ export const ghidraAdapter: ToolAdapter = {
         target: input.targetPath,
         scriptDir: input.resourcesDir,
         summaryPath: path.join(input.outputDir, 'ghidra-summary.json'),
+        typesPath: path.join(input.outputDir, 'ghidra-types.json'),
         logPath: path.join(input.outputDir, 'ghidra.log'),
         timeoutSec,
       }),

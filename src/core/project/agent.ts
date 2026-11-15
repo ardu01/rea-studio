@@ -201,7 +201,7 @@ export async function runAgent(goal: string, deps: AgentDeps, runId: string, sig
       case 'escribir':
       case 'editar': {
         const path = String(args.ruta)
-        assertWritable(path)
+        if (/^referencia(\/|$)/i.test(assertWritable(path))) throw new Error('La carpeta referencia/ es de solo lectura: la genera REA Studio a partir del análisis.')
         let previous: string | null = null
         try {
           const file = await readProjectFile(deps.root, path)

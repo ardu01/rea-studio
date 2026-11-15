@@ -103,3 +103,5 @@ export const agentStartSchema = z.object({ goal: z.string().min(1).max(4000), ma
 export const agentAnswerSchema = z
   .object({ runId: z.string().regex(/^ag-[a-z0-9-]{1,40}$/), callId: z.string().regex(/^c[0-9]{1,6}$/), approve: z.boolean() })
   .strict()
+
+export const referencesUpdateSchema = z.object({ references: z.array(z.string().min(1).max(1024)).max(50).optional() }).strict()

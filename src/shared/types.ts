@@ -221,6 +221,7 @@ export interface ReaBridge {
   projectHistory(): Promise<GitStep[]>
   projectUndo(stepId: string): Promise<ProjectView>
   projectResetToStart(): Promise<ProjectView>
+  updateReferences(references?: string[]): Promise<ProjectView>
   checkCommand(command: string, args: string[]): Promise<CommandCheck & { needsApproval: boolean }>
   runCommand(input: { command: string; args: string[]; confirmed: boolean; timeoutSec?: number }): Promise<{ runId: string }>
   cancelCommand(runId: string): Promise<void>
