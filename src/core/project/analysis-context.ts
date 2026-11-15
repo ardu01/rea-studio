@@ -337,7 +337,7 @@ export function searchFicha(ficha: Ficha, query: string, max = 60): string {
 
 /** Versión legible de la ficha (referencia/ficha.md). */
 export function fichaMarkdown(ficha: Ficha): string {
-  const lines: string[] = ['# Ficha del análisis', '', 'Generada por REA Studio a partir de los artefactos del análisis. Solo lectura para el agente: es una guía, no código para copiar.', '']
+  const lines: string[] = ['# Ficha del análisis', '', 'Análisis del programa original, generado por REA Studio. Es la base de la copia: el agente lo sigue con fidelidad y no puede modificarlo.', '']
   const p = ficha.program
   if (p || ficha.file) {
     lines.push('## Programa', '')
@@ -403,4 +403,83 @@ export function fitFicha(ficha: Ficha, maxBytes = 480 * 1024): Ficha {
     }
   }
   return out
+}
+
+/** La ficha tiene datos del análisis (no solo fuentes omitidas o con error). */
+export function fichaHasContent(ficha: Ficha): boolean {
+  return Boolean(
+    (ficha.program && Object.values(ficha.program).some((value) => value !== undefined)) ||
+      ficha.functions.length ||
+      ficha.imports.length ||
+      ficha.exports.length ||
+      ficha.types.length ||
+      ficha.strings.length,
+  )
+}
+
+function section(title: string, items: string[], budget: number, total = items.length): string {
+  if (!items.length || budget <= 0) return ''
+  const head = `${title} (${total}):`
+  const lines: string[] = []
+  let used = head.length + 1
+  for (const item of items) {
+    const line = `  ${item}`
+    if (used + line.length + 1 > budget) break
+    lines.push(line)
+    used += line.length + 1
+  }
+  const rest = total - lines.length
+  if (rest > 0) lines.push(`  … y ${rest} más (búscalos con la herramienta «referencia»)`)
+  return [head, ...lines].join('\n')
+}
+
+/**
+ * Contexto de la ficha para el agente. Determinista: mismo orden y mismos
+ * recortes para la misma ficha. Reparte el presupuesto entre secciones; lo que
+ * no cabe se consulta con la herramienta «referencia».
+ */
+export function fichaContext(ficha: Ficha, maxChars = 12_000): string {
+  const header: string[] = []
+  const p = ficha.program
+  if (p) {
+    header.push(
+      `Programa original: ${[p.name, p.format, p.language, p.compiler].filter(Boolean).join(' · ')}${p.imageBase ? ` · base ${p.imageBase}` : ''}${p.functionCount !== undefined ? ` · ${p.functionCount} funciones` : ''}`,
+    )
+  }
+  if (ficha.file) header.push(`Archivo: ${[ficha.file.kind, ficha.file.bytes !== undefined ? `${ficha.file.bytes} bytes` : ''].filter(Boolean).join(', ')}`)
+  const named = ficha.functions.filter((fn) => !GENERIC_FN.test(fn.name))
+  const libs = [...importsByLibrary(ficha)].map(([lib, names]) => `${lib}: ${names.join(', ')}`)
+  const parts: Array<{ title: string; items: string[]; total?: number; weight: number }> = [
+    { title: 'Tipos y estructuras', items: ficha.types.map(typeLine), weight: 3 },
+    { title: 'Funciones con nombre', items: named.map((fn) => `${fn.name}${fn.entry ? ` @ ${fn.entry}` : ''}`), weight: 3 },
+    { title: 'Importaciones por biblioteca', items: libs, total: libs.length, weight: 2 },
+    { title: 'Exportaciones', items: ficha.exports, weight: 1 },
+    { title: 'Cadenas (mensajes, formatos, rutas, claves)', items: ficha.strings.map((s) => JSON.stringify(s)), weight: 2 },
+  ]
+  const headerText = header.join('\n')
+  const available = Math.max(0, maxChars - headerText.length - 2)
+  const active = parts.filter((part) => part.items.length)
+  const weights = active.reduce((sum, part) => sum + part.weight, 0) || 1
+  // Primera pasada con la parte proporcional; lo que sobra se reparte en orden.
+  let spare = 0
+  const budgets = active.map((part) => {
+    const share = Math.floor((available * part.weight) / weights)
+    const need = part.items.reduce((sum, item) => sum + item.length + 3, part.title.length + 12)
+    if (need <= share) {
+      spare += share - need
+      return need
+    }
+    return share
+  })
+  active.forEach((part, index) => {
+    const need = part.items.reduce((sum, item) => sum + item.length + 3, part.title.length + 12)
+    if (budgets[index]! < need && spare > 0) {
+      const extra = Math.min(spare, need - budgets[index]!)
+      budgets[index]! += extra
+      spare -= extra
+    }
+  })
+  const body = active.map((part, index) => section(part.title, part.items, budgets[index]! - 1, part.total)).filter(Boolean)
+  const text = [headerText, ...body].filter(Boolean).join('\n\n')
+  return text.length > maxChars ? text.slice(0, maxChars) : text
 }

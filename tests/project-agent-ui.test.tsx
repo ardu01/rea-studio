@@ -83,4 +83,32 @@ describe('agente en la pantalla Proyecto', () => {
     fireEvent.change(screen.getByLabelText('Objetivo para el agente'), { target: { value: 'x' } })
     expect((screen.getByRole('button', { name: 'Empezar' }) as HTMLButtonElement).disabled).toBe(true)
   })
+
+  it('un proyecto sin ficha pide cargar el análisis antes de usar el agente', async () => {
+    const { bridge } = setup({ ...openView, ficha: { loaded: false } })
+    await openAgent()
+    expect(screen.getByText(/no tiene la ficha del análisis del programa original/)).toBeTruthy()
+    fireEvent.change(screen.getByLabelText('Objetivo para el agente'), { target: { value: 'Copia el visor' } })
+    expect((screen.getByRole('button', { name: 'Empezar' }) as HTMLButtonElement).disabled).toBe(true)
+    fireEvent.click(screen.getByRole('button', { name: 'Cargar el análisis…' }))
+    expect(await screen.findByRole('tab', { name: 'Referencia', selected: true })).toBeTruthy()
+    expect(bridge.startAgent).not.toHaveBeenCalled()
+  })
+
+  it('marca si un cambio es reproducción o mejora y su motivo', async () => {
+    const { emit } = setup({ ...openView, ficha: { loaded: true } })
+    await openAgent()
+    fireEvent.change(screen.getByLabelText('Objetivo para el agente'), { target: { value: 'Copia y mejora' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Empezar' }))
+    await screen.findByRole('button', { name: 'Detener' })
+    await emit({
+      kind: 'approval',
+      runId: 'ag-1',
+      callId: 'c4',
+      request: { type: 'write', path: 'src/registros.js', created: false, added: 1, removed: 1, phase: 'mejora', reason: 'Seguridad: limita el tamaño de línea para evitar consumo de memoria.', diff: '--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n' },
+    })
+    const region = screen.getByRole('region', { name: 'Cambio propuesto' })
+    expect(within(region).getByText('Mejora')).toBeTruthy()
+    expect(within(region).getByText(/limita el tamaño de línea/)).toBeTruthy()
+  })
 })

@@ -105,11 +105,11 @@ export function ReferencePanel({ ctx }: { ctx: ProjectContext }) {
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <h2>Ficha del análisis</h2>
           <div className="row">
-            {ficha ? <Badge tone="ready">Solo lectura para el agente</Badge> : <Badge>Sin ficha</Badge>}
+            {ficha ? <Badge tone="ready">Solo lectura para el agente</Badge> : <Badge tone="bad">Falta la ficha</Badge>}
           </div>
         </div>
         <p className="small muted" style={{ marginTop: 6 }}>
-          Resumen del programa analizado (funciones, importaciones, tipos y cadenas) que el agente consulta con «referencia». Se guarda en
+          Análisis del programa original (funciones, importaciones, tipos y cadenas). Es obligatorio: el agente lo recibe siempre y copia la aplicación a partir de él. Se guarda en
           <span className="path"> referencia/ </span>
           y cada actualización es un commit.
         </p>
@@ -136,7 +136,7 @@ export function ReferencePanel({ ctx }: { ctx: ProjectContext }) {
               </div>
             )}
             <div className="row" style={{ marginTop: 10 }}>
-              <Button type="button" disabled={busy} onClick={() => void update(picked)}>{busy ? 'Generando…' : 'Guardar y generar ficha'}</Button>
+              <Button type="button" disabled={busy || picked.length === 0} onClick={() => void update(picked)}>{busy ? 'Generando…' : 'Guardar y generar ficha'}</Button>
               <Button type="button" variant="secondary" onClick={() => setEditing(false)}>Cancelar</Button>
             </div>
           </div>

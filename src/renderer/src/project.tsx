@@ -126,7 +126,7 @@ function NewProject({ bridge, view, onView }: { bridge: ReaBridge; view: Project
     <div className="page">
       <h1>Proyecto</h1>
       <p className="lead">
-        Crea una aplicación nueva en una carpeta local. El modelo local trabaja solo dentro de esa carpeta y usa el análisis como referencia, sin copiar el binario.
+        Recrea el programa original en una carpeta local a partir de su análisis: el modelo local primero copia fielmente la aplicación y después la mejora, trabajando solo dentro de esa carpeta.
       </p>
       {!view.gitAvailable ? <p className="banner">No se encuentra git en PATH. El modo Proyecto lo necesita para poder deshacer cada paso.</p> : null}
       {error ? <p className="banner" role="alert">{error}</p> : null}
@@ -160,29 +160,38 @@ function NewProject({ bridge, view, onView }: { bridge: ReaBridge; view: Project
             </div>
           </div>
           <div style={{ marginTop: 12 }}>
-            <Label>Artefactos de referencia</Label>
+            <Label>Análisis del programa original (obligatorio)</Label>
             {artifacts.length === 0 ? (
-              <p className="small muted">No hay salidas de análisis en la carpeta de trabajo. Puedes crear el proyecto igualmente.</p>
+              <p className="banner warn" role="status">
+                No hay análisis en la carpeta de trabajo. Analiza primero el programa original (resumen de Ghidra, tipos, cadenas o importaciones): el proyecto se recrea a partir de ese análisis.
+              </p>
             ) : (
-              <div className="pick-list">
-                {artifacts.slice(0, 40).map((item) => (
-                  <label key={item.relativePath} className="pick">
-                    <input
-                      type="checkbox"
-                      checked={picked.includes(item.relativePath)}
-                      onChange={(event) =>
-                        setPicked(event.target.checked ? [...picked, item.relativePath] : picked.filter((rel) => rel !== item.relativePath))
-                      }
-                    />
-                    <span className="path">{item.relativePath}</span>
-                  </label>
-                ))}
-              </div>
+              <>
+                <div className="pick-list">
+                  {artifacts.slice(0, 40).map((item) => (
+                    <label key={item.relativePath} className="pick">
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(item.relativePath)}
+                        onChange={(event) =>
+                          setPicked(event.target.checked ? [...picked, item.relativePath] : picked.filter((rel) => rel !== item.relativePath))
+                        }
+                      />
+                      <span className="path">{item.relativePath}</span>
+                    </label>
+                  ))}
+                </div>
+                {picked.length === 0 ? (
+                  <p className="banner warn" role="status" style={{ marginTop: 10 }}>
+                    Carga el análisis de la aplicación original: elige al menos un artefacto. Sin él no se puede crear el proyecto.
+                  </p>
+                ) : null}
+              </>
             )}
           </div>
           <p className="small muted" style={{ marginTop: 10 }}>Se crea un repositorio git local: cada paso queda como un commit y se puede deshacer.</p>
           <div className="row" style={{ marginTop: 12 }}>
-            <Button type="button" disabled={busy || !name.trim() || !parentDir.trim() || !view.gitAvailable} onClick={() => void create()}>
+            <Button type="button" disabled={busy || !name.trim() || !parentDir.trim() || !view.gitAvailable || picked.length === 0} onClick={() => void create()}>
               {busy ? 'Creando…' : 'Crear proyecto'}
             </Button>
           </div>
@@ -205,6 +214,7 @@ export interface ProjectContext {
   refresh: () => Promise<void>
   select: (path: string) => void
   update: (view: ProjectView) => void
+  openTab: (id: string) => void
 }
 
 function OpenProject({
@@ -264,7 +274,7 @@ function OpenProject({
     }
   }
 
-  const ctx = useMemo<ProjectContext>(() => ({ bridge, view, refresh, select, update: onView }), [bridge, view, refresh, select, onView])
+  const ctx = useMemo<ProjectContext>(() => ({ bridge, view, refresh, select, update: onView, openTab: setTab }), [bridge, view, refresh, select, onView])
   const tabs = [...extraTabs.map((item) => ({ id: item.id, label: item.label })), { id: 'archivo', label: 'Archivo' }, { id: 'cambios', label: 'Cambios' }, { id: 'historial', label: 'Historial' }]
   const changes = tree?.entries.filter((entry) => entry.status).length ?? 0
 

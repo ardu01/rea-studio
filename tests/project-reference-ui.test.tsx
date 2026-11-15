@@ -60,7 +60,7 @@ describe('pestaña Referencia', () => {
   it('elige artefactos y genera la ficha', async () => {
     const bridge = setup(false)
     await openTab()
-    expect(await screen.findByText('Sin ficha')).toBeTruthy()
+    expect(await screen.findByText('Falta la ficha')).toBeTruthy()
     expect((screen.getByRole('button', { name: 'Generar ficha' }) as HTMLButtonElement).disabled).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Elegir artefactos…' }))
     const label = await screen.findByText('jobs/j1/output/strings.txt')

@@ -231,7 +231,7 @@ Permite preparar conversaciones con información obtenida durante los análisis.
 
 ### Modo Proyecto
 
-Crea un proyecto propio (Node.js, Python, .NET o C/C++ con CMake) en una carpeta aparte, con git local, y trabaja en él con un modelo de Ollama en localhost:
+Recrea el programa analizado en un proyecto propio (Node.js, Python, .NET o C/C++ con CMake), en una carpeta aparte y con git local. El análisis del original es obligatorio: un modelo de Ollama en localhost primero copia fielmente la aplicación según ese análisis y después la mejora, explicando cada mejora.
 
 - cada cambio se revisa como diff y se puede deshacer;
 - los comandos se lanzan sin shell y desde una lista permitida;

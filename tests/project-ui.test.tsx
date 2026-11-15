@@ -20,12 +20,28 @@ describe('pantalla Proyecto', () => {
     await waitFor(() => expect((screen.getByRole('textbox', { name: 'Carpeta donde crear el proyecto' }) as HTMLInputElement).value).toBe('/datos/proyectos'))
     fireEvent.change(screen.getByRole('combobox', { name: 'Plantilla' }), { target: { value: 'cmake' } })
     expect(screen.getByText(/CTest/)).toBeTruthy()
+    expect(await screen.findByText(/Carga el análisis de la aplicación original/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeDisabled()
     fireEvent.click(await screen.findByRole('checkbox'))
+    expect(screen.queryByText(/Carga el análisis de la aplicación original/)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Crear proyecto' }))
     await waitFor(() =>
       expect(created).toHaveBeenCalledWith({ parentDir: '/datos/proyectos', name: 'visor-registros', template: 'cmake', references: ['jobs/j1/strings.txt'] }),
     )
     expect(await screen.findByText('visor-registros · Node.js')).toBeTruthy()
+  })
+
+  it('sin análisis en la carpeta de trabajo avisa y no deja crear', async () => {
+    window.reaStudio = {
+      ...projectBridge({ project: null, gitAvailable: true, autonomous: false, templates }),
+      listArtifacts: async () => [],
+    }
+    render(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Proyecto' }))
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Nombre del proyecto' }), { target: { value: 'visor' } })
+    fireEvent.change(screen.getByRole('textbox', { name: 'Carpeta donde crear el proyecto' }), { target: { value: '/datos/proyectos' } })
+    expect(await screen.findByText(/Analiza primero el programa original/)).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Crear proyecto' })).toBeDisabled()
   })
 
   it('sin git avisa y no deja crear', async () => {

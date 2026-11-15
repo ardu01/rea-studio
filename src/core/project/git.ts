@@ -128,14 +128,17 @@ export class ProjectGit {
   }
 
   /** Vuelve al commit inicial creando un commit nuevo (no reescribe el historial). */
-  async resetToStart(): Promise<string | null> {
+  async resetToStart(keep: string[] = []): Promise<string | null> {
     const steps = await this.history(10_000)
     const first = steps[steps.length - 1]
     if (!first) throw new Error('El proyecto no tiene historial.')
     if (!(await this.isClean())) throw new Error('Hay cambios sin guardar en el proyecto. Guárdalos o descártalos antes de volver al inicio.')
     await must(this.git, ['checkout', first.id, '--', '.'])
     // Borra del índice y del disco lo que no existía al principio (solo archivos versionados).
-    const added = (await must(this.git, ['diff', '--name-only', '--diff-filter=A', first.id, 'HEAD'])).split('\n').filter(Boolean)
+    const added = (await must(this.git, ['diff', '--name-only', '--diff-filter=A', first.id, 'HEAD']))
+      .split('\n')
+      .filter(Boolean)
+      .filter((file) => !keep.some((prefix) => file.startsWith(prefix)))
     if (added.length) await must(this.git, ['rm', '-q', '--', ...added])
     return this.commitAll('vuelve al estado inicial')
   }

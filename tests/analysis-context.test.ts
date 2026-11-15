@@ -6,10 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { ghidraArgv } from '../src/core/adapters'
 import { findOnPath } from '../src/core/command'
 import { referencesUpdateSchema } from '../src/core/ipc-schemas'
-import { runAgent } from '../src/core/project/agent'
+import { RECREATE_INSTRUCTIONS, runAgent, trimContext } from '../src/core/project/agent'
+import type { ChatMessage } from '../src/core/ollama'
 import {
   buildFicha,
   collectSymbols,
+  fichaContext,
+  fichaHasContent,
   fichaMarkdown,
   fichaSummary,
   filterStrings,
@@ -172,6 +175,7 @@ describe('ficha del análisis', () => {
     expect(referencesUpdateSchema.safeParse({}).success).toBe(true)
     expect(referencesUpdateSchema.safeParse({ references: ['jobs/a/strings.txt'] }).success).toBe(true)
     expect(referencesUpdateSchema.safeParse({ references: 'x' }).success).toBe(false)
+    expect(referencesUpdateSchema.safeParse({ references: [] }).success).toBe(false)
   })
 })
 
@@ -205,7 +209,7 @@ describe('el agente y la referencia', () => {
           throw new Error('no')
         },
         reference,
-        referenceSummary: 'Programa: visor.exe',
+        analysis: 'Programa: visor.exe',
       },
       'ag-1',
       new AbortController().signal,
@@ -226,7 +230,7 @@ describe.skipIf(!GIT)('ficha en el proyecto (git real)', () => {
     expect(existsSync(path.join(info.root, 'referencia', 'ficha.md'))).toBe(true)
     expect((await projects.ficha())?.functions).toHaveLength(3)
     let history = await projects.history()
-    expect(history[0]!.message).toBe('REA: actualiza la ficha del análisis')
+    expect(history[0]!.message).toBe('REA: añade la ficha del análisis del programa original')
     await projects.updateReferences(REFS.slice(0, 5))
     expect(projects.project?.references).toHaveLength(5)
     expect(JSON.parse(await readFile(path.join(info.root, 'rea-proyecto.json'), 'utf8')).references).toHaveLength(5)
@@ -236,11 +240,81 @@ describe.skipIf(!GIT)('ficha en el proyecto (git real)', () => {
     expect(await projects.git().isClean()).toBe(true)
   })
 
-  it('sin espacio de trabajo no genera nada', async () => {
+  it('no deja dejar el proyecto sin ficha ni crear sin espacio de trabajo', async () => {
+    const ws = await sampleWorkspace()
     const parent = await temp()
-    const projects = new ProjectService({ gitFor: (root) => processGitRunner(GIT!, root), workspace: () => null })
-    await projects.create({ parentDir: parent, name: 'solo', template: 'python', references: [] })
-    await expect(projects.updateReferences()).rejects.toThrow(/espacio de trabajo/)
-    expect(await projects.ficha()).toBeNull()
+    const projects = new ProjectService({ gitFor: (root) => processGitRunner(GIT!, root), workspace: () => ws })
+    await projects.create({ parentDir: parent, name: 'solo', template: 'python', references: REFS.slice(0, 1) })
+    await expect(projects.updateReferences([])).rejects.toThrow(/Carga primero el análisis/)
+    await expect(projects.updateReferences(['jobs/j2/notas.log'])).rejects.toThrow(/no tienen datos/)
+    expect(await projects.ficha()).not.toBeNull()
+    const sinWs = new ProjectService({ gitFor: (root) => processGitRunner(GIT!, root), workspace: () => null })
+    await expect(sinWs.create({ parentDir: parent, name: 'otro', template: 'python', references: REFS.slice(0, 1) })).rejects.toThrow(/espacio de trabajo/)
+  })
+})
+
+describe('copiar y mejorar a partir de la ficha', () => {
+  it('el contexto de la ficha es determinista y respeta el presupuesto', async () => {
+    const ficha = await buildFicha(await sampleWorkspace(), REFS)
+    const small = fichaContext(ficha)
+    expect(small).toContain('Programa original: visor.exe')
+    expect(small).toContain('struct Registro (16 bytes)')
+    expect(small).toContain('parse_registro @ 140001400')
+    expect(small).toContain('KERNEL32.dll: CreateFileW, ReadFile')
+    expect(small).toContain('"Abriendo registro %s"')
+    expect(small).not.toContain('FUN_140001200')
+    const big: typeof ficha = {
+      ...ficha,
+      functions: Array.from({ length: 2000 }, (_, i) => ({ name: `funcion_${i}`, entry: `${1000 + i}` })),
+      strings: Array.from({ length: 1500 }, (_, i) => `mensaje de ejemplo número ${i}`),
+    }
+    const a = fichaContext(big, 6000)
+    expect(a.length).toBeLessThanOrEqual(6000)
+    expect(a).toBe(fichaContext(big, 6000))
+    expect(a).toMatch(/Funciones con nombre \(2000\)/)
+    expect(a).toMatch(/… y \d+ más \(búscalos con la herramienta «referencia»\)/)
+    expect(a).toContain('struct Registro')
+    expect(fichaHasContent(ficha)).toBe(true)
+    expect(fichaHasContent({ version: 1, generatedAt: '', sources: [], functions: [], imports: [], exports: [], types: [], strings: [] })).toBe(false)
+  })
+
+  it('el agente recibe la ficha y las dos fases, y cada mejora lleva motivo', async () => {
+    const root = await temp()
+    const replies = [
+      { content: '', toolCalls: [{ name: 'escribir', arguments: { ruta: 'src/registros.js', contenido: 'export const a = 1\n', fase: 'reproduccion' } }] },
+      { content: '', toolCalls: [{ name: 'editar', arguments: { ruta: 'src/registros.js', buscar: 'a = 1', reemplazar: 'a = 2', fase: 'mejora' } }] },
+      { content: '', toolCalls: [{ name: 'editar', arguments: { ruta: 'src/registros.js', buscar: 'a = 1', reemplazar: 'a = 2', fase: 'mejora', motivo: 'Errores: corrige el valor inicial.' } }] },
+      { content: '', toolCalls: [{ name: 'fin', arguments: { resumen: 'Reproducción: … Mejoras: …' } }] },
+    ]
+    const seen: ChatMessage[][] = []
+    const commit = vi.fn(async (_message: string) => null as string | null)
+    const approve = vi.fn(async (_id: string, _req: unknown) => true)
+    await runAgent(
+      'Copia el visor y mejóralo',
+      {
+        root, projectName: 'visor', templateLabel: 'Node.js', commands: [],
+        chat: async (messages) => {
+          seen.push(messages)
+          return replies.shift()!
+        },
+        autonomous: () => false, approve, emit: () => undefined, commit, diff: async () => '',
+        run: async () => { throw new Error('no') },
+        reference: async () => '',
+        analysis: 'Programa original: visor.exe\n\nTipos y estructuras (1):\n  struct Registro (16 bytes) { +0 uint id }',
+      },
+      'ag-1',
+      new AbortController().signal,
+    )
+    expect(seen[0]![0]!.content).toContain(RECREATE_INSTRUCTIONS)
+    expect(seen[0]![0]!.content).toMatch(/FASE 1, REPRODUCCIÓN FIEL/)
+    expect(seen[0]![0]!.content).toMatch(/FASE 2, MEJORAS/)
+    expect(seen[0]![1]!.content).toContain('Ficha del análisis del programa original')
+    expect(seen[0]![1]!.content).toContain('struct Registro (16 bytes)')
+    expect(seen[2]!.at(-1)!.content).toMatch(/necesita un motivo/)
+    expect(commit.mock.calls.map((call) => call[0])).toEqual(['reproduce: crea src/registros.js', 'mejora: modifica src/registros.js (Errores: corrige el valor inicial.)'])
+    expect(approve.mock.calls[1]![1]).toMatchObject({ type: 'write', phase: 'mejora', reason: 'Errores: corrige el valor inicial.' })
+    // La ficha sigue en el contexto aunque haya que recortar.
+    const trimmed = trimContext([...seen[3]!, { role: 'tool', content: 'x'.repeat(60_000) }, { role: 'tool', content: 'fin' }], 2000)
+    expect(trimmed[1]!.content).toContain('struct Registro')
   })
 })
