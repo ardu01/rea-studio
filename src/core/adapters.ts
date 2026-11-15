@@ -40,6 +40,8 @@ export interface ProcessPlan {
   stdin?: string
   /** Variables que se añaden al entorno permitido (por ejemplo JAVA_HOME para Ghidra y JADX). */
   env?: Record<string, string>
+  /** Carpetas que deben existir antes de lanzar (dentro de la carpeta del trabajo). */
+  mkdirs?: string[]
 }
 
 export interface LocalRunContext {
@@ -367,6 +369,8 @@ export const ghidraAdapter: ToolAdapter = {
       kind: 'process',
       env: planJavaEnv(input),
       executable: launcher,
+      // analyzeHeadless no crea la carpeta del proyecto: sin ella aborta con «Directory not found».
+      mkdirs: [path.join(input.jobDir, 'ghidra-project')],
       args: ghidraArgv({
         projectDir: path.join(input.jobDir, 'ghidra-project'),
         target: input.targetPath,

@@ -230,6 +230,7 @@ toolsSuite('Analizando con todas las herramientas incluidas', () => {
       const craft = ran.filter((job) => job.adapterId === 'craft-anything')
       expect(craft.map((job) => `${job.actionId}:${job.status}`)).toEqual(['triage:succeeded', 'report:succeeded'])
       expect(flow.state?.step).not.toBe('analizando')
+      if (ready.includes('ghidra')) expect(ran.find((job) => job.adapterId === 'ghidra')?.status).toBe('succeeded')
     } finally {
       await rm(root, { recursive: true, force: true })
     }

@@ -208,6 +208,11 @@ export class JobManager {
         if (controller.signal.aborted) return persist('cancelled', { error: 'Cancelado.' })
         return persist('succeeded')
       }
+      for (const dir of plan.mkdirs ?? []) {
+        const inside = path.relative(jobDir, dir)
+        if (!inside || inside.startsWith('..') || path.isAbsolute(inside)) throw new Error('Carpeta de trabajo no válida.')
+        await mkdir(dir, { recursive: true })
+      }
       const launch = planLaunch(plan.executable, plan.args, this.deps.platform ?? process.platform, this.deps.pathEnv ?? process.env.PATH ?? '')
       if (launch.shell !== false) throw new Error('El lanzador rechazó un modo de shell.')
       record.executable = launch.command
