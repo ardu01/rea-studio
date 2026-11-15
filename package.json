@@ -13,7 +13,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "build": "electron-vite build",
-    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never --config electron-builder.yml",
+    "tools:fetch": "node scripts/fetch-tools.mjs",
+    "tools:check": "node scripts/fetch-tools.mjs --check",
+    "dist:win": "(node scripts/fetch-tools.mjs --check || node scripts/fetch-tools.mjs) && npm run build && electron-builder --win nsis --x64 --publish never --config electron-builder.yml",
     "notices": "node scripts/collect-licenses.mjs"
   },
   "dependencies": {

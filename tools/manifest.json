@@ -1,0 +1,300 @@
+{
+  "$comment": "Herramientas que el instalador de Windows lleva dentro. Versiones fijas; scripts/fetch-tools.mjs descarga cada archivo de su fuente oficial y comprueba el sha256 antes de usarlo.",
+  "platform": "win32-x64",
+  "archives": [
+    {
+      "id": "node",
+      "name": "Node.js (motor de la CLI de REA)",
+      "version": "24.22.3",
+      "url": "https://nodejs.org/dist/v24.22.3/node-v24.22.3-win-x64.zip",
+      "sha256": "e612af99f626ab415ea225af6bce5c971feb448cb5cae250bb1c3fa50c5f7d9f",
+      "shaSource": "https://nodejs.org/dist/v24.22.3/SHASUMS256.txt",
+      "stripTopDir": true,
+      "keep": [
+        "node.exe",
+        "LICENSE"
+      ],
+      "dest": "node",
+      "license": "MIT (y licencias de terceros en LICENSE)",
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "source": "https://github.com/nodejs/node/tree/v24.22.3",
+      "redistributable": true
+    },
+    {
+      "id": "jdk",
+      "name": "Eclipse Temurin JDK 25 (para Ghidra y JADX)",
+      "version": "25.0.5+8",
+      "url": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk_x64_windows_hotspot_25.0.5_8.zip",
+      "sha256": "636bdc13dc649ddc7d5921c5c7d23cca6e44fd19d662b45cc9c02135a6c96c42",
+      "shaSource": "https://github.com/adoptium/temurin25-binaries/releases/download/jdk-25.0.5%2B8/OpenJDK25U-jdk_x64_windows_hotspot_25.0.5_8.zip.sha256.txt",
+      "stripTopDir": true,
+      "dest": "jdk",
+      "license": "GPL-2.0 con Classpath Exception",
+      "licenseFiles": [
+        "NOTICE",
+        "legal"
+      ],
+      "source": "https://github.com/adoptium/jdk25u/tree/jdk-25.0.5+8",
+      "redistributable": true,
+      "exclude": [
+        "jmods/"
+      ],
+      "$comment": "Ghidra 12.2 pide Java 25 como mínimo (Ghidra/application.properties: application.java.min=25). Se omite jmods/, que solo sirve para jlink."
+    },
+    {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": "12.2",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip",
+      "sha256": "2c2cd776db3c1f6a097ba418922378ac3649cadd5e844a6f5f088ae628a7be67",
+      "shaSource": "https://github.com/NationalSecurityAgency/ghidra/releases/tag/Ghidra_12.2_build",
+      "stripTopDir": true,
+      "dest": "ghidra",
+      "license": "Apache-2.0 (componentes de terceros en licenses/ y GPL/)",
+      "licenseFiles": [
+        "LICENSE",
+        "licenses",
+        "GPL"
+      ],
+      "source": "https://github.com/NationalSecurityAgency/ghidra/tree/Ghidra_12.2_build",
+      "redistributable": true
+    },
+    {
+      "id": "radare2",
+      "name": "radare2",
+      "version": "6.2.6",
+      "url": "https://github.com/radareorg/radare2/releases/download/6.2.6/radare2-6.2.6-w64.zip",
+      "sha256": "c648e354dd584b14ba31d0244feb338c7506eb5b55b8cb4f09b06ee0507de54f",
+      "shaSource": "https://github.com/radareorg/radare2/releases/tag/6.2.6",
+      "stripTopDir": true,
+      "dest": "radare2",
+      "license": "Mayormente LGPL-3.0; algunos plugins con GPL, MIT, BSD, Apache-2.0 o Zlib (ver COPYING.md)",
+      "licenseFiles": [],
+      "source": "https://github.com/radareorg/radare2/tree/6.2.6",
+      "redistributable": true,
+      "licenseDownloads": [
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/COPYING.md",
+          "sha256": "c4154ac363318953bc18c8faf4b41dad3457ee51475d63e708db7b41570ffa79",
+          "file": "COPYING.md"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses.md",
+          "sha256": "56010a666e305e2bc66e49d953b49ebd589e8c6377dcdbe87853f67f892967ad",
+          "file": "doc_licenses.md"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/Apache-2.0.txt",
+          "sha256": "bc40c81a239ea10a8eec80f3b018824704da1c672b1a4beb6accb8f909f5ab6b",
+          "file": "doc_licenses_Apache-2.0.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/BSD-2-Clause.txt",
+          "sha256": "f9b29fb66a48bf7c52c5b00b87610f4146922dc551619d65722ee6ceed0ec56f",
+          "file": "doc_licenses_BSD-2-Clause.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/BSD-3-Clause.txt",
+          "sha256": "2fcaaa8d3d4c1be9b8f2dcb91e5c1609dc7a624ab9dc7bdb82fcf6402606c1d9",
+          "file": "doc_licenses_BSD-3-Clause.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/GPL-2.0-or-later.txt",
+          "sha256": "d29dbcc178acaf8370a7f861f30ae9ebec8e96c0177d2205280a96ae0e0b5d46",
+          "file": "doc_licenses_GPL-2.0-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/GPL-3.0-only.txt",
+          "sha256": "203c10ae2f92356d658522ee61db97e5daad634c5dc4190bc0bd23a1511a33b4",
+          "file": "doc_licenses_GPL-3.0-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/LGPL-2.0-only.txt",
+          "sha256": "afa0ae241ac8d45c40f161d3ddfc49cf7673f85d50b7793573f327003232670b",
+          "file": "doc_licenses_LGPL-2.0-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/LGPL-3.0-only.txt",
+          "sha256": "0740dfbcda3fd11515fae1a49b9238ddf2316c30d53fa7209823377314dd241f",
+          "file": "doc_licenses_LGPL-3.0-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/MIT.txt",
+          "sha256": "2c5fe99f061dbd11d58b7676c418d0d0f59d8708ac5db0ad6b68b712a8401069",
+          "file": "doc_licenses_MIT.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/radareorg/radare2/6.2.6/doc/licenses/Zlib.txt",
+          "sha256": "4dfcff23dcece41557b99888c75f8fdfa53d013166e21ec60d35447d97acc580",
+          "file": "doc_licenses_Zlib.txt"
+        }
+      ]
+    },
+    {
+      "id": "rizin",
+      "name": "Rizin",
+      "version": "0.9.1",
+      "url": "https://github.com/rizinorg/rizin/releases/download/v0.9.1/rizin-windows-shared64-v0.9.1.zip",
+      "sha256": "45ffa004e26653eaee8d262b8e6eeae09402a7d319c1f20a2ba794bd6af1cc28",
+      "shaSource": "https://github.com/rizinorg/rizin/releases/tag/v0.9.1",
+      "stripTopDir": true,
+      "dest": "rizin",
+      "license": "Mayormente LGPL-3.0; algunas partes con otras licencias libres (ver REUSE.toml)",
+      "licenseFiles": [],
+      "source": "https://github.com/rizinorg/rizin/tree/v0.9.1",
+      "redistributable": true,
+      "licenseDownloads": [
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/COPYING",
+          "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903",
+          "file": "COPYING"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/COPYING.LESSER",
+          "sha256": "da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768",
+          "file": "COPYING.LESSER"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/REUSE.toml",
+          "sha256": "8787b0f6bc6f531db9afb7cc75b18f89f844c8ef07708e9a95fe0b528ea0efdf",
+          "file": "REUSE.toml"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/Apache-2.0.txt",
+          "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff",
+          "file": "LICENSES_Apache-2.0.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/BSD-2-Clause.txt",
+          "sha256": "e5a8645ad94aab24e312dd0c6be2aa54236eb9374480b1b14ea5c61598874fd5",
+          "file": "LICENSES_BSD-2-Clause.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/BSD-3-Clause.txt",
+          "sha256": "42639b2e5507163d35069be166e37a784f48a5f17e3577c16eb48fab215247cd",
+          "file": "LICENSES_BSD-3-Clause.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/CC-BY-SA-4.0.txt",
+          "sha256": "3b2890eacd851373001c4a14623458e3adaf1b1967939aa9c38a318e28d61c00",
+          "file": "LICENSES_CC-BY-SA-4.0.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/CC-PDDC.txt",
+          "sha256": "40f05ccacf018e7311690cd03bba659a1329b3df9775d2aafd33715d52541fe0",
+          "file": "LICENSES_CC-PDDC.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/CC0-1.0.txt",
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+          "file": "LICENSES_CC0-1.0.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/GPL-1.0-or-later.txt",
+          "sha256": "da37ffd5fcdf0a7d76af862a4330ea1076e1443b51782b2f912148357b7acabe",
+          "file": "LICENSES_GPL-1.0-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/GPL-2.0-only.txt",
+          "sha256": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
+          "file": "LICENSES_GPL-2.0-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/GPL-2.0-or-later.txt",
+          "sha256": "aaf135472f81c5b4a0dca9367e5bb5e9750032b5bebe5442b36e4c0a47430df3",
+          "file": "LICENSES_GPL-2.0-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/GPL-3.0-or-later.txt",
+          "sha256": "b6a8bf63ae2c95b0aa256ee774680d7bd18f21f457da75466f7610b3b16acc4e",
+          "file": "LICENSES_GPL-3.0-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/LGPL-2.0-or-later.txt",
+          "sha256": "61778e80a2fd85955b626b29aa2bcf06144c714277bded65633e4a81479d9fb3",
+          "file": "LICENSES_LGPL-2.0-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/LGPL-2.1-only.txt",
+          "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+          "file": "LICENSES_LGPL-2.1-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/LGPL-2.1-or-later.txt",
+          "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+          "file": "LICENSES_LGPL-2.1-or-later.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/LGPL-3.0-only.txt",
+          "sha256": "ed4d84ce3547932c66f7d5e383378ee7cc1a37d429bbae9cca39dc942fd3b4a6",
+          "file": "LICENSES_LGPL-3.0-only.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/MIT.txt",
+          "sha256": "b85dcd3e453d05982552c52b5fc9e0bdd6d23c6f8e844b984a88af32570b0cc0",
+          "file": "LICENSES_MIT.txt"
+        },
+        {
+          "url": "https://raw.githubusercontent.com/rizinorg/rizin/v0.9.1/LICENSES/NCSA.txt",
+          "sha256": "b31bbfd06e221b39e1a877fb3f91b32fe9e88c87c1b46d11cd2bd5c822ec71e3",
+          "file": "LICENSES_NCSA.txt"
+        }
+      ]
+    },
+    {
+      "id": "jadx",
+      "name": "JADX",
+      "version": "1.5.6",
+      "url": "https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip",
+      "sha256": "545ea2be9c242511bc145755cf4bda2485ade42966e096f8b4d3da2a230e8974",
+      "shaSource": "https://github.com/skylot/jadx/releases/tag/v1.5.6",
+      "stripTopDir": false,
+      "dest": "jadx",
+      "license": "Apache-2.0",
+      "licenseFiles": [
+        "LICENSE"
+      ],
+      "source": "https://github.com/skylot/jadx/tree/v1.5.6",
+      "redistributable": true
+    }
+  ],
+  "npm": [
+    {
+      "id": "rea",
+      "name": "CLI de REA (rea-agents)",
+      "version": "6.8.0",
+      "package": "rea-agents",
+      "integrity": "sha512-9QDeRnGqEDzABZyr04eLnBXBv/c6I9/TWu/6M0MD4pEfkySI/BIgwTODIbAReX3C1x6hjw9+Jlx4A2yUSPZ9ww==",
+      "dest": "rea",
+      "lockDir": "tools/rea",
+      "license": "MIT (dependencias con sus licencias en THIRD_PARTY_NOTICES)",
+      "source": "https://github.com/morluto/rea",
+      "redistributable": true,
+      "remove": [
+        "frida"
+      ]
+    }
+  ],
+  "notBundled": [
+    {
+      "id": "ida",
+      "name": "IDA Pro",
+      "reason": "Licencia comercial de Hex-Rays; ni IDA Pro ni IDA Free permiten redistribuirlo.",
+      "url": "https://hex-rays.com/ida-pro"
+    },
+    {
+      "id": "binary-ninja",
+      "name": "Binary Ninja",
+      "reason": "Licencia comercial de Vector 35; la edición gratuita tampoco permite redistribuirla.",
+      "url": "https://binary.ninja/"
+    },
+    {
+      "id": "hopper",
+      "name": "Hopper",
+      "reason": "Licencia comercial y no tiene versión para Windows.",
+      "url": "https://www.hopperapp.com/"
+    }
+  ]
+}

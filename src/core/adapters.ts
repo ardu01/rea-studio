@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { lstat, open, readdir, realpath, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { ghidraJavaMin, javaEnv, type BundledTools, type ToolSource } from './bundled.js'
 import { findOnPath } from './command.js'
 import { assertAbsoluteUserPath } from './paths.js'
 import type { Detection, TargetKind, ToolActionInfo, ToolMaturity } from '../shared/types.js'
@@ -12,6 +13,8 @@ export interface AdapterContext {
   pathEnv: string
   configured: Record<string, string>
   resourcesDir: string
+  /** Herramientas incluidas en el instalador. Se usan antes que las del PATH. */
+  bundled?: BundledTools
   exists: (file: string) => boolean
   runVersion: (executable: string, args: string[]) => Promise<{ stdout: string; stderr: string; exitCode: number | null }>
 }
@@ -25,6 +28,7 @@ export interface PlanInput {
   configured: Record<string, string>
   platform: NodeJS.Platform
   pathEnv: string
+  bundled?: BundledTools
 }
 
 export interface ProcessPlan {
@@ -33,6 +37,8 @@ export interface ProcessPlan {
   args: string[]
   cwd: string
   stdin?: string
+  /** Variables que se añaden al entorno permitido (por ejemplo JAVA_HOME para Ghidra y JADX). */
+  env?: Record<string, string>
 }
 
 export interface LocalRunContext {
@@ -55,38 +61,36 @@ export interface ToolAdapter {
   docsUrl: string
   installHint: string
   actions: ToolActionInfo[]
+  /** Web oficial para descargarla cuando no se puede incluir en el instalador. */
+  downloadUrl?: string
   detect: (ctx: AdapterContext) => Promise<Detection>
   plan: (actionId: string, input: PlanInput) => ProcessPlan | LocalPlan
 }
 
-const FUTURE: Array<{ id: string; name: string; binary: string; docsUrl: string; hint: string }> = [
+const FUTURE: Array<{ id: string; name: string; binary: string; docsUrl: string; downloadUrl: string; hint: string }> = [
   {
     id: 'ida',
     name: 'IDA Pro',
     binary: 'ida64',
-    docsUrl: 'https://hex-rays.com/ida-pro',
-    hint: 'IDA no tiene adaptador en v0.1.0. No se lanzará aunque esté instalado.',
+    docsUrl: DOC_LINKS.ida,
+    downloadUrl: DOC_LINKS.idaDownload,
+    hint: 'No va en el instalador: su licencia comercial no permite redistribuirlo. Descárgalo de la web oficial. IDA no tiene adaptador en v0.1.0 y no se lanzará aunque esté instalado.',
   },
   {
     id: 'binary-ninja',
     name: 'Binary Ninja',
     binary: 'binaryninja',
-    docsUrl: 'https://binary.ninja/',
-    hint: 'Binary Ninja queda como complemento futuro. v0.1.0 no lo ejecuta.',
+    docsUrl: DOC_LINKS.binaryNinja,
+    downloadUrl: DOC_LINKS.binaryNinjaDownload,
+    hint: 'No va en el instalador: su licencia comercial no permite redistribuirlo. Descárgalo de la web oficial. Queda como complemento futuro; v0.1.0 no lo ejecuta.',
   },
   {
     id: 'hopper',
     name: 'Hopper',
     binary: 'hopper',
-    docsUrl: 'https://www.hopperapp.com/',
-    hint: 'Hopper queda como complemento futuro. v0.1.0 no lo ejecuta.',
-  },
-  {
-    id: 'jadx',
-    name: 'JADX',
-    binary: 'jadx',
-    docsUrl: 'https://github.com/skylot/jadx',
-    hint: 'JADX queda como complemento futuro. v0.1.0 no lo ejecuta.',
+    docsUrl: DOC_LINKS.hopper,
+    downloadUrl: DOC_LINKS.hopperDownload,
+    hint: 'No va en el instalador: es comercial y no tiene versión para Windows. Queda como complemento futuro; v0.1.0 no lo ejecuta.',
   },
 ]
 
@@ -100,13 +104,41 @@ function action(
   return { id, title, summary, needsTarget, targetKind }
 }
 
-function resolveConfigured(ctx: AdapterContext, key: string, basename: string): string | null {
+type BundledKey = 'java' | 'radare2' | 'rabin2' | 'rizin' | 'rzBin' | 'jadx'
+
+function bundledPath(bundled: BundledTools | undefined, key: string): string | undefined {
+  if (!bundled) return undefined
+  if (['java', 'radare2', 'rabin2', 'rizin', 'rzBin', 'jadx'].includes(key)) return bundled[key as BundledKey]
+  return undefined
+}
+
+/**
+ * Orden de búsqueda: la ruta que el usuario indicó en Herramientas, la copia incluida en el
+ * instalador y, por último, el PATH.
+ */
+export function resolveTool(
+  ctx: Pick<AdapterContext, 'configured' | 'platform' | 'pathEnv' | 'exists' | 'bundled'>,
+  key: string,
+  basename: string,
+): { path: string; source: ToolSource } | null {
   const configured = ctx.configured[key]?.trim()
   if (configured) {
     const abs = assertAbsoluteUserPath(configured, ctx.platform)
-    return ctx.exists(abs) ? abs : null
+    return ctx.exists(abs) ? { path: abs, source: 'configured' } : null
   }
-  return findOnPath(basename, ctx.pathEnv, ctx.platform)
+  const bundled = bundledPath(ctx.bundled, key)
+  if (bundled) return { path: bundled, source: 'bundled' }
+  const found = findOnPath(basename, ctx.pathEnv, ctx.platform)
+  return found ? { path: found, source: 'path' } : null
+}
+
+function resolveConfigured(ctx: AdapterContext, key: string, basename: string): string | null {
+  return resolveTool(ctx, key, basename)?.path ?? null
+}
+
+function bundledNote(ctx: AdapterContext, id: string): string {
+  const version = ctx.bundled?.versions[id]
+  return version ? `Incluida con REA Studio (${version}).` : 'Incluida con REA Studio.'
 }
 
 async function versionOf(
@@ -185,25 +217,34 @@ export const reaAdapter: ToolAdapter = {
   maturity: 'implemented',
   verification: 'Comandos documentados. Las pruebas lanzan un ejecutable sustituto, no el paquete rea-agents.',
   docsUrl: DOC_LINKS.reaCli,
-  installHint: 'npm install --global rea-agents   ·   https://github.com/morluto/rea',
+  installHint: 'Incluida en el instalador de Windows. También sirve una copia propia: npm install --global rea-agents   ·   https://github.com/morluto/rea',
   actions: REA_ACTIONS,
   async detect(ctx) {
-    const resolved = resolveConfigured(ctx, 'rea', 'rea')
+    const configured = ctx.configured.rea?.trim()
+    if (!configured && ctx.bundled?.rea) {
+      const { node, script } = ctx.bundled.rea
+      const version = await versionOf(ctx, node, [script, '--version'])
+      return baseDetection(this, 'ready', `${bundledNote(ctx, 'rea')} rea --version: ${version}.`, script, 'bundled')
+    }
+    const resolved = resolveTool(ctx, 'rea', 'rea')
     if (!resolved) {
       return baseDetection(this, 'missing', 'No configurado. No está rea en PATH ni en la ruta indicada.')
     }
-    const version = await versionOf(ctx, resolved, ['--version'])
-    return baseDetection(this, 'ready', `Encontrado. ${version}`, resolved)
+    const version = await versionOf(ctx, resolved.path, ['--version'])
+    return baseDetection(this, 'ready', `Encontrado. ${version}`, resolved.path, resolved.source)
   },
   plan(actionId, input) {
-    const executable = requiredTool(input, 'rea', 'rea')
     const spec = REA_ACTIONS.find((item) => item.id === actionId)
     if (!spec) throw new Error('Acción de REA desconocida.')
     if (spec.needsTarget && !input.targetPath) throw new Error('Esta acción necesita un archivo o una carpeta.')
+    const argv = reaArgv(actionId, input.targetPath)
+    if (!input.configured.rea?.trim() && input.bundled?.rea) {
+      return { kind: 'process', executable: input.bundled.rea.node, args: [input.bundled.rea.script, ...argv], cwd: input.jobDir }
+    }
     return {
       kind: 'process',
-      executable,
-      args: reaArgv(actionId, input.targetPath),
+      executable: requiredTool(input, 'rea', 'rea'),
+      args: argv,
       cwd: input.jobDir,
     }
   },
@@ -271,7 +312,7 @@ export const ghidraAdapter: ToolAdapter = {
   maturity: 'implemented',
   verification: 'analyzeHeadless con ExportSummary.java y ExportTypes.java propios. Las pruebas usan un lanzador sustituto.',
   docsUrl: DOC_LINKS.ghidraHeadless,
-  installHint: 'Descomprime la release oficial y elige la carpeta de Ghidra. Hace falta JDK 21 para Ghidra 11.',
+  installHint: 'Incluida en el instalador de Windows con su JDK (Temurin). Para usar otra, elige la carpeta de Ghidra y su java.',
   actions: [
     action(
       'import-summary',
@@ -283,26 +324,29 @@ export const ghidraAdapter: ToolAdapter = {
   ],
   async detect(ctx) {
     const configured = ctx.configured.ghidra?.trim()
+    const source: ToolSource = configured ? 'configured' : ctx.bundled?.ghidra ? 'bundled' : 'path'
     const found = configured
       ? resolveGhidraLauncher(assertAbsoluteUserPath(configured, ctx.platform), ctx.platform)
-      : findGhidraOnPath(ctx)
+      : (ctx.bundled?.ghidra ?? findGhidraOnPath(ctx))
     if (!found || !ctx.exists(found)) {
       return baseDetection(this, 'missing', 'No configurado. Indica la carpeta de Ghidra o support/analyzeHeadless.')
     }
     const java = resolveConfigured(ctx, 'java', 'java')
     if (!java) {
-      return baseDetection(this, 'missing', `Ghidra está en ${found}, pero no hay java en PATH.`, found)
+      return baseDetection(this, 'missing', `Ghidra está en ${found}, pero no hay java en PATH.`, found, source)
     }
     const probed = await ctx.runVersion(java, ['-version'])
     const parsed = parseJavaVersion(`${probed.stderr}\n${probed.stdout}`)
     const javaNote = parsed
       ? `Java ${parsed.version}`
       : 'Java responde, pero no se reconoció la versión'
+    const min = ghidraJavaMin(found, ctx.platform, (file) => readFileSync(file, 'utf8')) ?? 21
     const jdk =
-      parsed?.major !== null && parsed && parsed.major < 21
-        ? `${javaNote}. Ghidra 11.x pide JDK 21; esta versión puede fallar.`
+      parsed?.major !== null && parsed && parsed.major < min
+        ? `${javaNote}. Esta versión de Ghidra pide JDK ${min}; puede fallar.`
         : javaNote
-    return baseDetection(this, 'ready', `Lanzador ${found}. ${jdk}.`, found)
+    const where = source === 'bundled' ? bundledNote(ctx, 'ghidra') : `Lanzador ${found}.`
+    return baseDetection(this, 'ready', `${where} ${jdk}.`, found, source)
   },
   plan(actionId, input) {
     if (actionId !== 'import-summary') throw new Error('Acción de Ghidra desconocida.')
@@ -312,6 +356,7 @@ export const ghidraAdapter: ToolAdapter = {
     const timeoutSec = Math.max(1, Math.min(3600, Math.round(input.timeoutMs / 1000)))
     return {
       kind: 'process',
+      env: planJavaEnv(input),
       executable: launcher,
       args: ghidraArgv({
         projectDir: path.join(input.jobDir, 'ghidra-project'),
@@ -334,9 +379,17 @@ function findGhidraOnPath(ctx: AdapterContext): string | null {
   return ctx.exists(launcher) ? launcher : null
 }
 
+/** Si java no sale del PATH (ruta indicada o JDK incluido), Ghidra y JADX deben usar ese. */
+function planJavaEnv(input: PlanInput): Record<string, string> | undefined {
+  const java = resolveTool({ ...input, exists: existsSync }, 'java', 'java')
+  if (!java || java.source === 'path') return undefined
+  return javaEnv(java.path, input.pathEnv, input.platform)
+}
+
 export function ghidraLauncher(input: PlanInput): string {
   const configured = input.configured.ghidra?.trim()
   if (configured) return resolveGhidraLauncher(assertAbsoluteUserPath(configured, input.platform), input.platform)
+  if (input.bundled?.ghidra) return input.bundled.ghidra
   const envDir = process.env.GHIDRA_INSTALL_DIR
   if (envDir) return resolveGhidraLauncher(envDir, input.platform)
   throw new Error('No está configurado el lanzador de Ghidra.')
@@ -348,7 +401,7 @@ export const radareAdapter: ToolAdapter = {
   maturity: 'implemented',
   verification: 'rabin2 y r2 -c con un script fijo (aa; afl; q). No se abre el depurador.',
   docsUrl: DOC_LINKS.radare2,
-  installHint: 'Instala radare2 desde la release oficial. REA Studio busca r2 y rabin2.',
+  installHint: 'Incluida en el instalador de Windows. Para usar otra, indica r2 y rabin2.',
   actions: [
     action('info', 'Información del binario', 'rabin2 -I -i -E -S -j. Metadatos, imports, exports y secciones en JSON.', true, 'file'),
     action(
@@ -360,11 +413,12 @@ export const radareAdapter: ToolAdapter = {
     ),
   ],
   async detect(ctx) {
-    const r2 = resolveConfigured(ctx, 'radare2', 'r2')
-    const rabin = resolveConfigured(ctx, 'rabin2', 'rabin2')
+    const r2 = resolveTool(ctx, 'radare2', 'r2')
+    const rabin = resolveTool(ctx, 'rabin2', 'rabin2')
     if (!r2 && !rabin) return baseDetection(this, 'missing', 'No configurado. No están r2 ni rabin2.')
-    const bits = [r2 ? `r2: ${await versionOf(ctx, r2)}` : 'r2 ausente', rabin ? 'rabin2 presente' : 'rabin2 ausente']
-    return baseDetection(this, 'ready', bits.join('. '), r2 ?? rabin ?? undefined)
+    const bits = [r2 ? `r2: ${await versionOf(ctx, r2.path, ['-v'])}` : 'r2 ausente', rabin ? 'rabin2 presente' : 'rabin2 ausente']
+    const prefix = r2?.source === 'bundled' ? `${bundledNote(ctx, 'radare2')} ` : ''
+    return baseDetection(this, 'ready', `${prefix}${bits.join('. ')}.`, r2?.path ?? rabin?.path, (r2 ?? rabin)?.source)
   },
   plan(actionId, input) {
     if (!input.targetPath) throw new Error('radare2 necesita un archivo.')
@@ -394,17 +448,18 @@ export const rizinAdapter: ToolAdapter = {
   maturity: 'implemented',
   verification: 'rz-bin y rizin -c con script fijo. Sin depuración.',
   docsUrl: DOC_LINKS.rizin,
-  installHint: 'Instala Rizin desde https://rizin.re/. REA Studio busca rizin y rz-bin.',
+  installHint: 'Incluida en el instalador de Windows. Para usar otra, indica rizin y rz-bin.',
   actions: [
     action('info', 'Información del binario', 'rz-bin -I -i -E -S -j', true, 'file'),
     action('aa', 'Análisis estático breve', 'rizin -q -c "aa; afl; q". No ejecuta el binario.', true, 'file'),
   ],
   async detect(ctx) {
-    const rizin = resolveConfigured(ctx, 'rizin', 'rizin')
-    const rzBin = resolveConfigured(ctx, 'rzBin', 'rz-bin')
+    const rizin = resolveTool(ctx, 'rizin', 'rizin')
+    const rzBin = resolveTool(ctx, 'rzBin', 'rz-bin')
     if (!rizin && !rzBin) return baseDetection(this, 'missing', 'No configurado. No están rizin ni rz-bin.')
-    const note = rizin ? await versionOf(ctx, rizin) : 'sin rizin'
-    return baseDetection(this, 'ready', `${note}. ${rzBin ? 'rz-bin presente' : 'rz-bin ausente'}.`, rizin ?? rzBin ?? undefined)
+    const note = rizin ? await versionOf(ctx, rizin.path, ['-v']) : 'sin rizin'
+    const prefix = rizin?.source === 'bundled' ? `${bundledNote(ctx, 'rizin')} ` : ''
+    return baseDetection(this, 'ready', `${prefix}${note}. ${rzBin ? 'rz-bin presente' : 'rz-bin ausente'}.`, rizin?.path ?? rzBin?.path, (rizin ?? rzBin)?.source)
   },
   plan(actionId, input) {
     if (!input.targetPath) throw new Error('Rizin necesita un archivo.')
@@ -580,6 +635,45 @@ export const metadataAdapter: ToolAdapter = {
   },
 }
 
+export const jadxAdapter: ToolAdapter = {
+  id: 'jadx',
+  name: 'JADX',
+  maturity: 'implemented',
+  verification: 'jadx -d con salida en la carpeta del trabajo. Descompila APK, DEX, JAR o AAR sin ejecutarlos. Memoria de Java limitada a 4 GB.',
+  docsUrl: DOC_LINKS.jadx,
+  installHint: 'Incluida en el instalador de Windows con el mismo JDK que Ghidra. Para usar otra, indica jadx.',
+  actions: [
+    action(
+      'decompile',
+      'Descompilar (APK, DEX, JAR)',
+      'jadx -d SALIDA -j 2 ARCHIVO. Escribe el código Java y los recursos recuperados. No ejecuta la aplicación.',
+      true,
+      'file',
+    ),
+  ],
+  async detect(ctx) {
+    const jadx = resolveTool(ctx, 'jadx', 'jadx')
+    if (!jadx) return baseDetection(this, 'missing', 'No configurado. No está jadx en PATH ni en la ruta indicada.')
+    if (jadx.source === 'bundled') {
+      const java = resolveTool(ctx, 'java', 'java')
+      const note = java ? 'Usa el JDK incluido.' : 'Falta Java.'
+      return baseDetection(this, java ? 'ready' : 'missing', `${bundledNote(ctx, 'jadx')} ${note}`, jadx.path, 'bundled')
+    }
+    return baseDetection(this, 'ready', `Encontrado. ${await versionOf(ctx, jadx.path, ['--version'])}`, jadx.path, jadx.source)
+  },
+  plan(actionId, input) {
+    if (actionId !== 'decompile') throw new Error('Acción de JADX desconocida.')
+    if (!input.targetPath) throw new Error('JADX necesita un archivo.')
+    return {
+      kind: 'process',
+      executable: requiredTool(input, 'jadx', 'jadx'),
+      args: ['-d', path.join(input.outputDir, 'jadx'), '-j', '2', input.targetPath],
+      cwd: input.jobDir,
+      env: { ...planJavaEnv(input), JAVA_OPTS: '-Xmx4g' },
+    }
+  },
+}
+
 function futureAdapter(spec: (typeof FUTURE)[number]): ToolAdapter {
   return {
     id: spec.id,
@@ -587,6 +681,7 @@ function futureAdapter(spec: (typeof FUTURE)[number]): ToolAdapter {
     maturity: 'future',
     verification: 'No implementado en v0.1.0.',
     docsUrl: spec.docsUrl,
+    downloadUrl: spec.downloadUrl,
     installHint: spec.hint,
     actions: [],
     async detect(ctx) {
@@ -605,6 +700,8 @@ function futureAdapter(spec: (typeof FUTURE)[number]): ToolAdapter {
 function requiredTool(input: PlanInput, key: string, basename: string): string {
   const configured = input.configured[key]?.trim()
   if (configured) return assertAbsoluteUserPath(configured, input.platform)
+  const bundled = bundledPath(input.bundled, key)
+  if (bundled) return bundled
   const found = findOnPath(basename, input.pathEnv, input.platform)
   if (!found) throw new Error(`No está ${basename}. Indica la ruta en Herramientas.`)
   return found
@@ -615,6 +712,7 @@ function baseDetection(
   state: Detection['state'],
   detail: string,
   resolvedPath?: string,
+  source?: ToolSource,
 ): Detection {
   return {
     id: adapter.id,
@@ -623,6 +721,8 @@ function baseDetection(
     state,
     detail,
     resolvedPath,
+    source,
+    downloadUrl: (adapter as Partial<Pick<ToolAdapter, 'downloadUrl'>>).downloadUrl,
     docsUrl: adapter.docsUrl,
     installHint: adapter.installHint,
     verification: adapter.verification,
@@ -638,6 +738,7 @@ export function createRegistry(): ToolAdapter[] {
     rizinAdapter,
     stringsAdapter,
     metadataAdapter,
+    jadxAdapter,
     ...FUTURE.map(futureAdapter),
   ]
 }

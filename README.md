@@ -343,9 +343,9 @@ Entre ellas:
 
 ### Instalación
 
-REA requiere Node.js y sus dependencias correspondientes.
+El instalador de Windows incluye la CLI de REA (`rea-agents` 6.8.0) con su propio `node.exe` (Node.js 24.22.3). No hace falta instalar nada más ni tocar el PATH.
 
-Instalación mediante npm:
+Para usar otra copia, indica su ruta en Herramientas o instálala con npm:
 
 ```bash
 npm install --global rea-agents
@@ -413,21 +413,13 @@ El script no se compiló contra `ghidra.jar` durante la validación inicial.
 
 ### Requisitos
 
-La documentación de la versión 0.1.0 contempla:
-
-- Ghidra 11.
-- JDK 21.
-- Configuración de la ubicación de Ghidra.
+Ghidra 12.2 pide Java 25 como mínimo. REA Studio lee ese mínimo de `Ghidra/application.properties` y avisa si el java que va a usar no llega.
 
 ### Instalación
 
-Descargar Ghidra desde sus fuentes oficiales:
+El instalador de Windows incluye Ghidra 12.2 y Eclipse Temurin JDK 25.0.5+8. REA Studio lanza Ghidra con `JAVA_HOME` apuntando a ese JDK, aunque haya otro java en el PATH.
 
-https://ghidra-sre.org/
-
-Para el JDK puede utilizarse una distribución compatible, como Eclipse Temurin:
-
-https://adoptium.net/
+Para usar otra instalación, indica la carpeta de Ghidra y su java en Herramientas. Descargas oficiales: https://ghidra-sre.org/ y https://adoptium.net/
 
 ### Validación
 
@@ -800,11 +792,15 @@ Windows SmartScreen puede mostrar advertencias.
 
 El usuario debe verificar la procedencia e integridad del archivo antes de autorizar su ejecución.
 
-### Dependencias
+### Herramientas incluidas
 
-REA Studio no incluye automáticamente todas las herramientas externas.
+El instalador de Windows lleva REA, Ghidra con su JDK, radare2, Rizin y JADX (ver `docs/HERRAMIENTAS-INCLUIDAS.md`). Se instalan para el usuario en `resources/tools`, dentro de la carpeta de REA Studio, sin permisos de administrador y sin cambiar el PATH.
 
-REA, Ghidra, radare2, Rizin y las herramientas de inteligencia artificial deben instalarse y configurarse por separado cuando se necesiten.
+REA Studio busca cada herramienta en este orden: la ruta indicada en Herramientas, la copia incluida y el PATH.
+
+IDA Pro, Binary Ninja y Hopper no se incluyen porque su licencia no lo permite. Herramientas enlaza su descarga oficial.
+
+Las herramientas de inteligencia artificial se instalan y configuran aparte.
 
 ## 15. Configuración
 

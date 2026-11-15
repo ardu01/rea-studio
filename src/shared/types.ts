@@ -8,9 +8,16 @@ export const DOC_LINKS = {
   ghidraSite: 'https://ghidra-sre.org/',
   ghidraHeadless:
     'https://github.com/NationalSecurityAgency/ghidra/blob/master/Ghidra/RuntimeScripts/support/analyzeHeadlessREADME.md',
-  temurin: 'https://adoptium.net/temurin/releases/?version=21',
+  temurin: 'https://adoptium.net/temurin/releases/?version=25',
   radare2: 'https://github.com/radareorg/radare2',
   rizin: 'https://rizin.re/',
+  jadx: 'https://github.com/skylot/jadx',
+  ida: 'https://hex-rays.com/ida-pro',
+  idaDownload: 'https://hex-rays.com/ida-free',
+  binaryNinja: 'https://binary.ninja/',
+  binaryNinjaDownload: 'https://binary.ninja/free/',
+  hopper: 'https://www.hopperapp.com/',
+  hopperDownload: 'https://www.hopperapp.com/download.html',
   codexCli: 'https://learn.chatgpt.com/docs/non-interactive-mode',
   claudeCli: 'https://code.claude.com/docs/en/headless',
   geminiCli: 'https://github.com/google-gemini/gemini-cli',
@@ -45,6 +52,10 @@ export interface Detection {
   state: DetectionState
   detail: string
   resolvedPath?: string
+  /** De dónde sale: ruta indicada, copia incluida en el instalador o PATH. */
+  source?: 'configured' | 'bundled' | 'path'
+  /** Web oficial de descarga para las que no se pueden incluir en el instalador. */
+  downloadUrl?: string
   docsUrl: string
   installHint: string
   verification: string
@@ -79,6 +90,7 @@ export interface PublicSettings {
     rabin2: string
     rizin: string
     rzBin: string
+    jadx: string
     codex: string
     claude: string
     gemini: string
