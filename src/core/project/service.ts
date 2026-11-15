@@ -8,6 +8,7 @@ export interface ProjectServiceDeps {
   /** Devuelve un ejecutor de git para la raíz, o null si git no está disponible. */
   gitFor: (root: string) => GitRunner | null
   workspace: () => string | null
+  agentInfo?: () => import('../../shared/types.js').AgentInfo
 }
 
 export class ProjectService {
@@ -29,6 +30,7 @@ export class ProjectService {
       project: this.current,
       gitAvailable: this.gitAvailable(),
       autonomous: this.autonomousMode,
+      agent: this.deps.agentInfo?.(),
       templates: PROJECT_TEMPLATES.map((item) => ({ id: item.id, label: item.label, summary: item.summary })),
     }
   }

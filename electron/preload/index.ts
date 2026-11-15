@@ -45,6 +45,10 @@ const bridge: ReaBridge = {
   cancelCommand: (runId) => ipcRenderer.invoke('project:cancel-command', { id: runId }),
   setAutonomous: (enabled) => ipcRenderer.invoke('project:set-autonomous', { enabled }),
   onProjectEvent: (cb) => subscribe('project:event', cb),
+  startAgent: (input) => ipcRenderer.invoke('agent:start', input),
+  answerAgent: (input) => ipcRenderer.invoke('agent:answer', input),
+  cancelAgent: (runId) => ipcRenderer.invoke('agent:cancel', { id: runId }),
+  onAgentEvent: (cb) => subscribe('agent:event', cb),
   shot: (name) => ipcRenderer.invoke('e2e:shot', { name }),
   shotDone: () => ipcRenderer.invoke('e2e:done'),
 }

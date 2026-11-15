@@ -131,5 +131,17 @@ export function bridgeFor(state: AppState): ReaBridge {
     onProjectEvent() {
       return () => undefined
     },
+    async startAgent() {
+      return { runId: 'ag-1' }
+    },
+    async answerAgent() {
+      return undefined
+    },
+    async cancelAgent() {
+      return undefined
+    },
+    onAgentEvent() {
+      return () => undefined
+    },
   }
 }

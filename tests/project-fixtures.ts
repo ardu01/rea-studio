@@ -19,6 +19,7 @@ export const openView: ProjectView = {
   gitAvailable: true,
   autonomous: false,
   templates,
+  agent: { model: 'hf.co/mradermacher/Huihui-Qwen3.5-9B-abliterated-GGUF:Q4_K_M', endpoint: 'http://127.0.0.1:11434/v1', local: true, running: null },
   project: {
     root: '/datos/proyectos/visor-registros',
     name: 'visor-registros',

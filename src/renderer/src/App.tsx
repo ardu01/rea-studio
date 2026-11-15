@@ -4,6 +4,7 @@ import { ArtifactsScreen, ChatScreen, HomeScreen, JobsScreen, Onboarding, Settin
 import { Button } from './ui'
 import { ProjectScreen } from './project'
 import { CommandsPanel } from './project-commands'
+import { AgentPanel } from './project-agent'
 
 type Route = 'inicio' | 'herramientas' | 'trabajos' | 'artefactos' | 'proyecto' | 'conversacion' | 'ajustes'
 
@@ -17,7 +18,10 @@ const NAV: Array<{ id: Route; label: string }> = [
   { id: 'ajustes', label: 'Ajustes' },
 ]
 
-const PROJECT_TABS = [{ id: 'comandos', label: 'Comandos', render: (ctx: Parameters<typeof CommandsPanel>[0]['ctx']) => <CommandsPanel ctx={ctx} /> }]
+const PROJECT_TABS = [
+  { id: 'agente', label: 'Agente', render: (ctx: Parameters<typeof AgentPanel>[0]['ctx']) => <AgentPanel ctx={ctx} /> },
+  { id: 'comandos', label: 'Comandos', render: (ctx: Parameters<typeof CommandsPanel>[0]['ctx']) => <CommandsPanel ctx={ctx} /> },
+]
 
 export function App() {
   const bridge = window.reaStudio
